@@ -44,7 +44,8 @@ function pendingDownloads(session: Electron.Session): PendingDownload[] {
     // getURL() is the last hop of a redirect; the first entry is the URL this module asked for.
     const url = item.getURLChain()[0] ?? item.getURL();
     const index = pending.findIndex(
-      (entry) => entry.url === url && entry.webContentsId === webContents.id,
+      // Electron passes null when the initiating page is already gone.
+      (entry) => entry.url === url && entry.webContentsId === webContents?.id,
     );
     if (index === -1) return;
     const [entry] = pending.splice(index, 1);
@@ -87,6 +88,8 @@ export const downloadFile = makeIpcMethod({
         url,
         claim: (item) => {
           let interrupted = false;
+          // Electron titles the Save dialog with the URL, which here carries the signed token.
+          item.setSaveDialogOptions({ title: item.getFilename() });
           activeDownloads.add(item);
           showProgress(window);
           item.on("updated", (_updatedEvent, state) => {

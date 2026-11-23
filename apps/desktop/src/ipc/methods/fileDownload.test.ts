@@ -26,6 +26,8 @@ class FakeDownloadItem extends NodeEvents.EventEmitter {
   getReceivedBytes = () => this.received;
   getTotalBytes = () => this.total;
   getSavePath = () => "/Users/me/Downloads/report.pdf";
+  getFilename = () => "report.pdf";
+  setSaveDialogOptions = vi.fn();
 }
 
 function makeWindow({ emit = true } = {}) {
@@ -76,6 +78,7 @@ it.effect("reports where a download was saved and tracks its progress", () =>
     const fiber = yield* Effect.forkChild(run(ASSET_URL), { startImmediately: true });
     const [item] = items;
     assert.isDefined(item);
+    assert.deepEqual(item.setSaveDialogOptions.mock.calls, [[{ title: "report.pdf" }]]);
     item.received = 5;
     item.emit("updated", {}, "progressing");
     item.emit("done", {}, "completed");
@@ -121,6 +124,7 @@ it.effect(
       const otherTab = new FakeDownloadItem(ASSET_URL);
       session.emit("will-download", {}, blob, webContents);
       session.emit("will-download", {}, otherTab, { id: 2 });
+      session.emit("will-download", {}, new FakeDownloadItem(ASSET_URL), null);
       const [own] = items;
       assert.isDefined(own);
       session.emit("will-download", {}, own, webContents);
