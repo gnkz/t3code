@@ -26,6 +26,7 @@ function isAssetDownloadUrl(url: string): boolean {
 }
 
 interface PendingDownload {
+  readonly webContentsId: number;
   readonly url: string;
   readonly claim: (item: Electron.DownloadItem) => void;
 }
@@ -39,8 +40,12 @@ function pendingDownloads(session: Electron.Session): PendingDownload[] {
   const pending: PendingDownload[] = [];
   pendingBySession.set(session, pending);
   // The renderer's own blob saves pass through here too; those keep Electron's default handling.
-  session.on("will-download", (_event, item) => {
-    const index = pending.findIndex((entry) => entry.url === item.getURL());
+  session.on("will-download", (_event, item, webContents) => {
+    // getURL() is the last hop of a redirect; the first entry is the URL this module asked for.
+    const url = item.getURLChain()[0] ?? item.getURL();
+    const index = pending.findIndex(
+      (entry) => entry.url === url && entry.webContentsId === webContents.id,
+    );
     if (index === -1) return;
     const [entry] = pending.splice(index, 1);
     entry?.claim(item);
@@ -78,6 +83,7 @@ export const downloadFile = makeIpcMethod({
     return yield* Effect.callback<DesktopFileDownloadResult>((resume) => {
       const pending = pendingDownloads(window.webContents.session);
       const entry: PendingDownload = {
+        webContentsId: window.webContents.id,
         url,
         claim: (item) => {
           let interrupted = false;

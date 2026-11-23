@@ -34,6 +34,8 @@ export function fileDownloadResource(target: FileDownloadTarget): AssetResource 
       threadId: target.threadId,
       path: target.path,
       disposition: "attachment",
+      // Never fall back to a same-path file on the client's own machine.
+      hostOnly: true,
     };
   }
   if (target.workspaceRoot) {

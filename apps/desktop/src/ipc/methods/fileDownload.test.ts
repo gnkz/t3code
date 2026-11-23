@@ -15,29 +15,33 @@ class FakeDownloadItem extends NodeEvents.EventEmitter {
   cancel = vi.fn(() => {
     this.emit("done", {}, "cancelled");
   });
-  readonly url: string;
+  readonly chain: readonly string[];
   readonly total = 10;
-  constructor(url: string) {
+  constructor(...chain: string[]) {
     super();
-    this.url = url;
+    this.chain = chain;
   }
-  getURL = () => this.url;
+  getURL = () => this.chain.at(-1) ?? "";
+  getURLChain = () => this.chain;
   getReceivedBytes = () => this.received;
   getTotalBytes = () => this.total;
   getSavePath = () => "/Users/me/Downloads/report.pdf";
 }
 
-function makeWindow() {
+function makeWindow({ emit = true } = {}) {
   const session = new NodeEvents.EventEmitter();
   const items: FakeDownloadItem[] = [];
+  const redirects: string[] = [];
+  const webContents = { id: 1, session, downloadURL: (_url: string) => {} };
   const downloadURL = vi.fn((url: string) => {
-    const item = new FakeDownloadItem(url);
+    const item = new FakeDownloadItem(url, ...redirects);
     items.push(item);
-    session.emit("will-download", {}, item);
+    if (emit) session.emit("will-download", {}, item, webContents);
   });
+  webContents.downloadURL = downloadURL;
   const setProgressBar = vi.fn();
   const window = {
-    webContents: { id: 1, session, downloadURL },
+    webContents,
     isDestroyed: () => false,
     setProgressBar,
   };
@@ -47,7 +51,7 @@ function makeWindow() {
         main: Effect.succeedSome(window),
       } as unknown as ElectronWindow.ElectronWindow["Service"]),
     );
-  return { session, items, downloadURL, setProgressBar, run };
+  return { session, webContents, items, redirects, downloadURL, setProgressBar, run };
 }
 
 it.effect("downloads only signed asset URLs requested by the app window", () =>
@@ -106,17 +110,28 @@ it.effect("tells a cancelled Save dialog apart from a failed transfer", () =>
   }),
 );
 
-it.effect("leaves downloads it did not start to Electron", () =>
-  Effect.gen(function* () {
-    const { session, items, run } = makeWindow();
-    const fiber = yield* Effect.forkChild(run(ASSET_URL), { startImmediately: true });
-    const blob = new FakeDownloadItem("blob:t3code://app/1234");
-    session.emit("will-download", {}, blob);
-    assert.strictEqual(blob.listenerCount("done"), 0);
-    items[0]?.emit("done", {}, "completed");
-    assert.deepEqual(yield* Fiber.join(fiber), {
-      status: "completed",
-      path: "/Users/me/Downloads/report.pdf",
-    });
-  }),
+it.effect(
+  "claims its own download after a redirect, and leaves every other download to Electron",
+  () =>
+    Effect.gen(function* () {
+      const { session, webContents, items, redirects, run } = makeWindow({ emit: false });
+      redirects.push("https://cdn.remote.example/report.pdf");
+      const fiber = yield* Effect.forkChild(run(ASSET_URL), { startImmediately: true });
+      const blob = new FakeDownloadItem("blob:t3code://app/1234");
+      const otherTab = new FakeDownloadItem(ASSET_URL);
+      session.emit("will-download", {}, blob, webContents);
+      session.emit("will-download", {}, otherTab, { id: 2 });
+      const [own] = items;
+      assert.isDefined(own);
+      session.emit("will-download", {}, own, webContents);
+      assert.deepEqual(
+        [blob, otherTab, own].map((item) => item.listenerCount("done")),
+        [0, 0, 1],
+      );
+      own.emit("done", {}, "completed");
+      assert.deepEqual(yield* Fiber.join(fiber), {
+        status: "completed",
+        path: "/Users/me/Downloads/report.pdf",
+      });
+    }),
 );

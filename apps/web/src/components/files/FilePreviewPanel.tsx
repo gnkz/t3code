@@ -1498,9 +1498,14 @@ export default function FilePreviewPanel({
       : relativePath && attachment === undefined
         ? resolvePathLinkTarget(relativePath, cwd)
         : null;
-  // PDFs and large text already render their own Save file button.
+  // PDFs, large text, and document or binary previews already render their own Save file button.
   const downloadPath =
-    fileDownload.canDownload && previewPath !== null && !isPdf && !showsLargeText
+    fileDownload.canDownload &&
+    previewPath !== null &&
+    !isPdf &&
+    !showsLargeText &&
+    !isDocument &&
+    file.readError?.failure !== "binary_file"
       ? absolutePath
       : null;
   const onFilePostRender = useFileLineReveal(relativePath, revealLine, revealRequestId);

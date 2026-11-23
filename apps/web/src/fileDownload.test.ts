@@ -32,6 +32,7 @@ describe("fileDownloadResource", () => {
       threadId,
       path,
       disposition: "attachment",
+      hostOnly: true,
     });
     expect(fileDownloadResource({ path, workspaceRoot: "/home/me/project" })).toEqual({
       _tag: "draft-workspace-file",
