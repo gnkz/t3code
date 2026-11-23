@@ -1498,14 +1498,19 @@ export default function FilePreviewPanel({
       : relativePath && attachment === undefined
         ? resolvePathLinkTarget(relativePath, cwd)
         : null;
-  // PDFs, large text, and document or binary previews already render their own Save file button.
+  // Media, PDFs, and large text claim the preview first; the document preview is the fallback.
+  const rendersDocumentPreview =
+    !isMedia &&
+    !renderBrowserFile &&
+    !showsLargeText &&
+    (isDocument || file.readError?.failure === "binary_file");
+  // PDFs, large text, and document previews already render their own Save file button.
   const downloadPath =
     fileDownload.canDownload &&
     previewPath !== null &&
     !isPdf &&
     !showsLargeText &&
-    !isDocument &&
-    file.readError?.failure !== "binary_file"
+    !rendersDocumentPreview
       ? absolutePath
       : null;
   const onFilePostRender = useFileLineReveal(relativePath, revealLine, revealRequestId);
@@ -1820,9 +1825,7 @@ export default function FilePreviewPanel({
               revealRequestId={revealRequestId}
               wordWrap={wordWrap}
             />
-          ) : relativePath &&
-            absolutePath &&
-            (isDocument || file.readError?.failure === "binary_file") ? (
+          ) : relativePath && absolutePath && rendersDocumentPreview ? (
             <WorkspaceDocumentPreview
               key={`${environmentId}:${absolutePath}`}
               environmentId={environmentId}
