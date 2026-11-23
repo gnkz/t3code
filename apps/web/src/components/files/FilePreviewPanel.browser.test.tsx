@@ -213,11 +213,12 @@ function filePreview(
   relativePath: string,
   workspaceMutationId: string | null = null,
   composerDraftTarget: typeof threadRef | DraftId = threadRef,
+  cwd = "/workspace",
 ) {
   return (
     <FilePreviewPanel
       environmentId={environmentId}
-      cwd="/workspace"
+      cwd={cwd}
       projectName="Project"
       relativePath={relativePath}
       threadRef={threadRef}
@@ -805,13 +806,20 @@ describe("remote downloads", () => {
     expect(button(screen, "Save file")).toBeNull();
   });
 
-  it("downloads the file the read showed, taking a line-like name literally", async () => {
+  it.each([
+    // A line-like name is the file the read showed, not a link to `notes` line 0.
+    ["notes:0", "/home/bob/project/notes:0"],
+    // The server expands `~/` from its own home; guessing `/home/bob` from the workspace can miss.
+    ["~/report.txt", "~/report.txt"],
+  ])("downloads the file the read showed for %s", async (relativePath, signedPath) => {
     using _settings = setup();
     state.remote = true;
-    state.file = { relativePath: "notes:0", contents: "x\n", byteLength: 2, truncated: false };
-    await using screen = await render(filePreview("notes:0"));
+    state.file = { relativePath, contents: "x\n", byteLength: 2, truncated: false };
+    await using screen = await render(
+      filePreview(relativePath, null, threadRef, "/home/bob/project"),
+    );
     await vi.waitFor(() => expect(button(screen, "Download")).not.toBeNull());
     (button(screen, "Download") as HTMLButtonElement).click();
-    await vi.waitFor(() => expect(state.mintedPaths).toContain("/workspace/notes:0"));
+    await vi.waitFor(() => expect(state.mintedPaths).toContain(signedPath));
   });
 });

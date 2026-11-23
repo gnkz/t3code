@@ -1515,14 +1515,13 @@ export default function FilePreviewPanel({
         !renderBrowserFile &&
         !showsLargeText &&
         (isDocument || file.readError?.failure === "binary_file")));
-  // Download saves the file the read showed: the server reads `notes:0` literally and expands only
-  // `~/`, while the link resolver behind `absolutePath` also strips line suffixes.
+  // Download saves the file the read showed: the server reads `notes:0` literally and expands `~/`
+  // from its own home, while the link resolver behind `absolutePath` strips line suffixes and guesses
+  // the home from the workspace path. So the path goes to the signer as the read sent it.
   const readPath =
     previewPath === null || attachment !== undefined
       ? null
-      : /^~[/\\]/.test(previewPath)
-        ? absolutePath
-        : resolveWorkspaceFilePath(previewPath, cwd);
+      : resolveWorkspaceFilePath(previewPath, cwd);
   // Download waits for the read, as reveal does: a chat-linked folder reads as a file until then.
   const downloadPath =
     fileDownload.canDownload &&
