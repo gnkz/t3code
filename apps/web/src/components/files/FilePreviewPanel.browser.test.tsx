@@ -785,4 +785,18 @@ describe("remote downloads", () => {
       await toolbar({ error: null, isFile: true }, true, DraftId.make("unsent-draft")),
     ).toEqual({ download: false, save: true });
   });
+
+  it("gives a draft's large text Download, since its Save file needs the same server", async () => {
+    using _settings = setup();
+    state.remote = true;
+    state.file = {
+      relativePath: "big.log",
+      contents: "x\n",
+      byteLength: 1_200_000,
+      truncated: true,
+    };
+    await using screen = await render(filePreview("big.log", null, DraftId.make("unsent-draft")));
+    await vi.waitFor(() => expect(button(screen, "Download")).not.toBeNull());
+    expect(button(screen, "Save file")).toBeNull();
+  });
 });

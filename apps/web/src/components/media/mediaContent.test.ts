@@ -75,9 +75,12 @@ it("reads media the renderer cannot fetch through the desktop main process", asy
   }
 });
 
-it("refuses to save a response that is not the expected type", async () => {
-  // A gateway can answer a signed download URL with its own 200 error page.
-  const error = new Blob(['{"error":"expired"}'], { type: "application/json" });
+it.each([
+  ["application/json", '{"error":"expired"}'],
+  ["text/html", "<form>Sign in</form>"],
+])("refuses to save a %s response that is not the expected type", async (type, body) => {
+  // A gateway can answer a signed download URL with its own 200 error or login page.
+  const error = new Blob([body], { type });
   using _fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(error));
 
   await expect(

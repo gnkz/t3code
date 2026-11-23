@@ -1504,23 +1504,27 @@ export default function FilePreviewPanel({
       : relativePath && attachment === undefined
         ? resolvePathLinkTarget(relativePath, cwd)
         : null;
-  // PDFs, large text, and document previews render their own Save file, which buffers the file.
-  const previewSaves =
-    isPdf ||
-    showsLargeText ||
-    (!isMedia && !renderBrowserFile && (isDocument || file.readError?.failure === "binary_file"));
-  // Download streams to disk, so it replaces that Save file. A draft keeps it instead: a draft's
-  // Download needs a server that signs attachments for any file, while Save file works on any.
+  // PDFs, large text, and document previews render their own Save file, which buffers the file,
+  // so Download, which streams to disk, replaces it. A draft's PDF and document previews keep it:
+  // they save from the URL they preview, which any server signs, while a draft's Download (and its
+  // large-text Save) needs a server that signs attachments for any file.
+  const draftKeepsSave =
+    draft &&
+    (isPdf ||
+      (!isMedia &&
+        !renderBrowserFile &&
+        !showsLargeText &&
+        (isDocument || file.readError?.failure === "binary_file")));
   // Download waits for the read, as reveal does: a chat-linked folder reads as a file until then.
   const downloadPath =
-    fileDownload.canDownload && previewPath !== null && file.isFile && !(draft && previewSaves)
+    fileDownload.canDownload && previewPath !== null && file.isFile && !draftKeepsSave
       ? absolutePath
       : null;
   // A read that settles without a file, such as a symlink out of the workspace whose asset still
   // renders, keeps the preview's own Save file.
   const hidePreviewSave =
     fileDownload.canDownload &&
-    !draft &&
+    !draftKeepsSave &&
     (downloadPath !== null || (file.data === null && file.error === null));
   const onFilePostRender = useFileLineReveal(relativePath, revealLine, revealRequestId);
   // Mounting the file read under the workspace mutation id refetches it after each mutation.
