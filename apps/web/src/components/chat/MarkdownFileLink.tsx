@@ -1,5 +1,6 @@
 import { useNativeFileDrag } from "../../useNativeFileDrag";
 import { useAssetUrlState } from "../../assets/assetUrls";
+import { useFileMetadata } from "../../hooks/useFileMetadata";
 import { formatFilePathForClipboard } from "@t3tools/client-runtime/media-actions";
 import {
   isAtomCommandInterrupted,
@@ -83,6 +84,8 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
 }: MarkdownFileLinkProps) {
   const gt = useGT();
   const nativeDrag = useNativeFileDrag(environmentId, resolveDragPath);
+  // The chip's icon already reads this metadata, so this adds no request.
+  const isDirectory = useFileMetadata(environmentId, iconPath)?.kind === "directory";
   const handleOpenInEditor = () => {
     if (!onOpen) {
       return;
@@ -267,7 +270,7 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
             ? ([{ id: "open-in-browser", label: gt("Open in integrated browser") }] as const)
             : []),
           ...(onReveal && revealLabel ? ([{ id: "reveal", label: revealLabel }] as const) : []),
-          ...(onDownload
+          ...(onDownload && !isDirectory
             ? ([
                 {
                   id: "download",

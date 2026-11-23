@@ -277,6 +277,8 @@ export function WorkspaceBrowserPreview(props: {
   readonly workspaceRoot: string;
   readonly title: string;
   readonly workspaceMutationId: string | null;
+  /** The panel toolbar's Download replaces this Save file. */
+  readonly hideSave?: boolean;
 }) {
   const pdf = isPdfPreviewFile(props.absolutePath);
   const resource = workspaceAssetResource({
@@ -356,11 +358,13 @@ export function WorkspaceBrowserPreview(props: {
       pdf={pdf}
       threadRef={props.threadRef}
       pdfActions={
-        <WorkspacePdfSaveAction
-          environmentId={props.environmentId}
-          resource={resource}
-          name={props.title}
-        />
+        props.hideSave ? null : (
+          <WorkspacePdfSaveAction
+            environmentId={props.environmentId}
+            resource={resource}
+            name={props.title}
+          />
+        )
       }
     />
   );
@@ -528,6 +532,7 @@ function WorkspaceDocumentPreview(props: {
   readonly name: string;
   readonly workspaceMutationId: string | null;
   readonly refreshRevision: number;
+  readonly hideSave: boolean;
 }) {
   const resource =
     props.draft && props.document
@@ -573,6 +578,7 @@ function WorkspaceDocumentPreview(props: {
       sizeBytes={0}
       asset={{ environmentId: props.environmentId, resource }}
       origin={gt("File", { $context: "label for a file opened from the workspace" })}
+      hideSave={props.hideSave}
     />
   );
 }
@@ -1498,21 +1504,8 @@ export default function FilePreviewPanel({
       : relativePath && attachment === undefined
         ? resolvePathLinkTarget(relativePath, cwd)
         : null;
-  // Media, PDFs, and large text claim the preview first; the document preview is the fallback.
-  const rendersDocumentPreview =
-    !isMedia &&
-    !renderBrowserFile &&
-    !showsLargeText &&
-    (isDocument || file.readError?.failure === "binary_file");
-  // PDFs, large text, and document previews already render their own Save file button.
-  const downloadPath =
-    fileDownload.canDownload &&
-    previewPath !== null &&
-    !isPdf &&
-    !showsLargeText &&
-    !rendersDocumentPreview
-      ? absolutePath
-      : null;
+  // Download streams to disk, so it replaces the previews' own Save file, which buffers the file.
+  const downloadPath = fileDownload.canDownload && previewPath !== null ? absolutePath : null;
   const onFilePostRender = useFileLineReveal(relativePath, revealLine, revealRequestId);
   // Mounting the file read under the workspace mutation id refetches it after each mutation.
   useAtomMount(
@@ -1681,6 +1674,7 @@ export default function FilePreviewPanel({
               draftCwd={draft ? cwd : null}
               name={relativePath}
               copyContents={copyLargeText}
+              hideSave={fileDownload.canDownload}
             />
           ) : null}
           {downloadPath ? (
@@ -1805,6 +1799,7 @@ export default function FilePreviewPanel({
               workspaceRoot={cwd}
               title={relativePath}
               workspaceMutationId={workspaceMutationId}
+              hideSave={fileDownload.canDownload}
             />
           ) : relativePath && absolutePath && showsLargeText ? (
             <WorkspaceLargeTextPreview
@@ -1825,7 +1820,9 @@ export default function FilePreviewPanel({
               revealRequestId={revealRequestId}
               wordWrap={wordWrap}
             />
-          ) : relativePath && absolutePath && rendersDocumentPreview ? (
+          ) : relativePath &&
+            absolutePath &&
+            (isDocument || file.readError?.failure === "binary_file") ? (
             <WorkspaceDocumentPreview
               key={`${environmentId}:${absolutePath}`}
               environmentId={environmentId}
@@ -1837,6 +1834,7 @@ export default function FilePreviewPanel({
               name={relativePath.split(/[\\/]/).at(-1) || relativePath}
               workspaceMutationId={workspaceMutationId}
               refreshRevision={fileRefreshRevision}
+              hideSave={fileDownload.canDownload}
             />
           ) : relativePath && file.error && file.data === null ? (
             <div
@@ -1997,6 +1995,7 @@ function LargeFileActions(props: {
   draftCwd: string | null;
   name: string;
   copyContents: RefObject<(() => Promise<string>) | null>;
+  hideSave: boolean;
 }) {
   const gt = useGT();
   const { copyToClipboard, isCopied } = useCopyToClipboard({
@@ -2028,29 +2027,31 @@ function LargeFileActions(props: {
       >
         {isCopied ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
       </FileSurfaceAction>
-      <FileSurfaceAction
-        label={saving ? gt("Preparing file…") : gt("Save file")}
-        disabled={saving}
-        onPress={() => {
-          setSaving(true);
-          void (async () => {
-            const url = await refreshAssetUrl();
-            if (!url) throw new Error(gt("Reconnect to the environment and try again."));
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(gt("The file could not be loaded. Try again."));
-            const downloadUrl = URL.createObjectURL(await response.blob());
-            setTimeout(() => URL.revokeObjectURL(downloadUrl), 30_000);
-            const anchor = document.createElement("a");
-            anchor.href = downloadUrl;
-            anchor.download = props.name.split(/[\\/]/).at(-1) || props.name;
-            anchor.click();
-          })()
-            .catch(showError)
-            .finally(() => setSaving(false));
-        }}
-      >
-        <DownloadIcon className="size-3.5" />
-      </FileSurfaceAction>
+      {props.hideSave ? null : (
+        <FileSurfaceAction
+          label={saving ? gt("Preparing file…") : gt("Save file")}
+          disabled={saving}
+          onPress={() => {
+            setSaving(true);
+            void (async () => {
+              const url = await refreshAssetUrl();
+              if (!url) throw new Error(gt("Reconnect to the environment and try again."));
+              const response = await fetch(url);
+              if (!response.ok) throw new Error(gt("The file could not be loaded. Try again."));
+              const downloadUrl = URL.createObjectURL(await response.blob());
+              setTimeout(() => URL.revokeObjectURL(downloadUrl), 30_000);
+              const anchor = document.createElement("a");
+              anchor.href = downloadUrl;
+              anchor.download = props.name.split(/[\\/]/).at(-1) || props.name;
+              anchor.click();
+            })()
+              .catch(showError)
+              .finally(() => setSaving(false));
+          }}
+        >
+          <DownloadIcon className="size-3.5" />
+        </FileSurfaceAction>
+      )}
     </>
   );
 }

@@ -44,7 +44,8 @@ function makeWindow({ emit = true } = {}) {
   const setProgressBar = vi.fn();
   const window = {
     webContents,
-    isDestroyed: () => false,
+    destroyed: false,
+    isDestroyed: () => window.destroyed,
     setProgressBar,
   };
   const run = (url: string, sender = 1) =>
@@ -53,7 +54,7 @@ function makeWindow({ emit = true } = {}) {
         main: Effect.succeedSome(window),
       } as unknown as ElectronWindow.ElectronWindow["Service"]),
     );
-  return { session, webContents, items, redirects, downloadURL, setProgressBar, run };
+  return { session, window, webContents, items, redirects, downloadURL, setProgressBar, run };
 }
 
 it.effect("downloads only signed asset URLs requested by the app window", () =>
@@ -124,7 +125,7 @@ it.effect(
       const otherTab = new FakeDownloadItem(ASSET_URL);
       session.emit("will-download", {}, blob, webContents);
       session.emit("will-download", {}, otherTab, { id: 2 });
-      session.emit("will-download", {}, new FakeDownloadItem(ASSET_URL), null);
+      session.emit("will-download", {}, new FakeDownloadItem("blob:t3code://app/5678"), null);
       const [own] = items;
       assert.isDefined(own);
       session.emit("will-download", {}, own, webContents);
@@ -138,4 +139,18 @@ it.effect(
         path: "/Users/me/Downloads/report.pdf",
       });
     }),
+);
+
+it.effect("cancels a download that starts after its window has closed", () =>
+  Effect.gen(function* () {
+    const { session, window, run } = makeWindow({ emit: false });
+    const fiber = yield* Effect.forkChild(run(ASSET_URL), { startImmediately: true });
+    window.destroyed = true;
+    const late = new FakeDownloadItem(ASSET_URL);
+    // Electron reports no web contents once the page that asked for the download is gone.
+    session.emit("will-download", {}, late, null);
+    assert.strictEqual(late.cancel.mock.calls.length, 1);
+    assert.strictEqual(late.setSaveDialogOptions.mock.calls.length, 0);
+    assert.deepEqual(yield* Fiber.join(fiber), { status: "cancelled" });
+  }),
 );

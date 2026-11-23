@@ -1071,11 +1071,18 @@ function useChatMarkdownState(
         }
         revealLabel={revealInFileManagerLabel}
         onDownload={
-          fileDownload.canDownload && !isAppBundle
+          fileDownload.canDownload &&
+          !isAppBundle &&
+          !/[\\/]$/.test(fileLinkMeta.filePath) &&
+          (threadRef !== undefined || cwd !== undefined)
             ? async () =>
                 fileDownload.download({
                   path: (await resolveHostPath()).absolutePath,
-                  threadId: threadRef?.threadId,
+                  // A draft thread does not exist on the server yet; its workspace root does.
+                  threadId:
+                    threadRef !== undefined && readThreadShell(threadRef) !== null
+                      ? threadRef.threadId
+                      : null,
                   workspaceRoot: cwd,
                 })
             : undefined

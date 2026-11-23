@@ -2293,3 +2293,31 @@ it.each([
     `Unsupported PDF ${directory} asset.`,
   );
 });
+
+it("leaves saving to the host when it offers its own Download", async () => {
+  const file = new Blob(["\u0000\u0001"], { type: "application/octet-stream" });
+  const saveButton = (screen: Screen) =>
+    screen.container.querySelector('button[aria-label="Save file"]');
+  {
+    await using screen = await render(
+      <AttachmentFilePreview
+        name="data.bin"
+        mimeType={file.type}
+        sizeBytes={file.size}
+        file={file}
+      />,
+    );
+    await vi.waitFor(() => expect(saveButton(screen)).not.toBeNull());
+  }
+  await using screen = await render(
+    <AttachmentFilePreview
+      name="data.bin"
+      mimeType={file.type}
+      sizeBytes={file.size}
+      file={file}
+      hideSave
+    />,
+  );
+  await vi.waitFor(() => expect(screen.container.textContent).toContain("No preview"));
+  expect(saveButton(screen)).toBeNull();
+});
