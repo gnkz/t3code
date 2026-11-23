@@ -64,6 +64,7 @@ import {
 import { isBrowserPreviewFile, openFileInPreview } from "~/browser/openFileInPreview";
 import { useAssetUrlRefresh, useAssetUrlState } from "~/assets/assetUrls";
 import { OpenInPicker } from "~/components/chat/OpenInPicker";
+import { joinWorkspacePath } from "~/fileContextMenu";
 import { isDownloadablePath, useFileDownload } from "~/fileDownload";
 import { MediaVideoPlayer } from "~/components/media/MediaVideoPlayer";
 import { MediaActions, type MediaActionSource } from "~/components/media/MediaActions";
@@ -77,7 +78,7 @@ import { PREFERRED_HIGHLIGHTER } from "~/lib/syntaxHighlighting";
 import { cn, isMacPlatform } from "~/lib/utils";
 import { requestWorkspaceFocus } from "~/lib/workspaceFocus";
 import type { ChatFileAttachment } from "~/types";
-import { isHostPath, resolveWorkspaceFilePath } from "@t3tools/shared/path";
+import { isHostPath } from "@t3tools/shared/path";
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
@@ -1521,7 +1522,9 @@ export default function FilePreviewPanel({
   const readPath =
     previewPath === null || attachment !== undefined
       ? null
-      : resolveWorkspaceFilePath(previewPath, cwd);
+      : isHostPath(previewPath)
+        ? previewPath
+        : joinWorkspacePath(cwd, previewPath);
   // Download waits for the read, as reveal does: a chat-linked folder reads as a file until then.
   const downloadPath =
     fileDownload.canDownload &&

@@ -414,7 +414,7 @@ To copy a file from another machine to the computer you are using, right-click
 it in the file tree, on a file mention in chat, in a diff, or on the Workflows
 page, and choose **Download**. An open file also has a download button in its
 toolbar. The desktop app asks where to save it and writes it straight to disk;
-a browser saves it the way it saves any other download.
+a browser loads the whole file first, then saves it.
 
 Download appears only for machines other than the one running the app, and
 only when your connection can read files there. Folders cannot be downloaded.

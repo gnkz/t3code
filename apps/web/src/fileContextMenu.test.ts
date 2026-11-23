@@ -1,7 +1,11 @@
 import { EnvironmentId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { buildFileContextMenuItems, resolveFileContextMenuAbsolutePath } from "./fileContextMenu";
+import {
+  buildFileContextMenuItems,
+  joinWorkspacePath,
+  resolveFileContextMenuAbsolutePath,
+} from "./fileContextMenu";
 import { m } from "./i18n/messages";
 
 const BASE_TARGET = {
@@ -46,6 +50,13 @@ describe("resolveFileContextMenuAbsolutePath", () => {
         filePath: "src/index.ts",
       }),
     ).toBe("C:\\work\\project\\src\\index.ts");
+  });
+
+  it("keeps a POSIX root's trailing backslash, which names a different folder", () => {
+    expect(joinWorkspacePath("/work/repo\\", "report.txt")).toBe("/work/repo\\/report.txt");
+    expect(joinWorkspacePath("/work/repo/", "report.txt")).toBe("/work/repo/report.txt");
+    expect(joinWorkspacePath("C:\\work\\", "src/a.ts")).toBe("C:\\work\\src\\a.ts");
+    expect(joinWorkspacePath("/", "report.txt")).toBe("/report.txt");
   });
 
   it("rejects absolute paths without a workspace root, matching diff path resolution", () => {

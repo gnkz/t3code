@@ -54,9 +54,18 @@ export function resolveFileContextMenuAbsolutePath(target: FileContextMenuTarget
       : null;
   }
   // Menu targets name workspace files, not chat links: `~/x` and `notes:0` are literal names.
-  if (workspaceFilePath === "") return target.workspaceRoot;
-  const separator = isWindowsAbsolutePath(target.workspaceRoot) ? "\\" : "/";
-  return `${target.workspaceRoot.replace(/[/\\]+$/, "")}${separator}${workspaceFilePath.replaceAll("/", separator)}`;
+  return joinWorkspacePath(target.workspaceRoot, workspaceFilePath);
+}
+
+/**
+ * A workspace-relative name joined to its root literally, with no home or line-link meaning. Only
+ * the root's own separator is trimmed: on POSIX `/work/repo\` is a different folder from `/work/repo`.
+ */
+export function joinWorkspacePath(workspaceRoot: string, relativePath: string): string {
+  if (relativePath === "") return workspaceRoot;
+  const windows = isWindowsAbsolutePath(workspaceRoot);
+  const root = workspaceRoot.replace(windows ? /[/\\]+$/ : /\/+$/, "");
+  return windows ? `${root}\\${relativePath.replaceAll("/", "\\")}` : `${root}/${relativePath}`;
 }
 
 const EDITOR_LABEL_BY_ID = new Map(EDITORS.map((editor) => [editor.id, editor.label]));
