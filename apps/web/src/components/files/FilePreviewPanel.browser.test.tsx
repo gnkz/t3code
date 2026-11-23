@@ -21,6 +21,8 @@ const state = vi.hoisted(() => ({
   mintUrl: vi.fn<() => Promise<string | null>>(),
   browserAssetMints: 0,
   openedBrowserUrls: [] as string[],
+  remote: false,
+  read: { error: null as string | null, isFile: true },
 }));
 
 vi.mock(import("@t3tools/client-runtime/state/runtime"), async (original) => ({
@@ -53,7 +55,8 @@ vi.mock(import("~/state/server"), async (original) => {
 vi.mock(import("~/remoteOpen"), async (original) => ({
   ...(await original()),
   useRemoteOpenState: () => ({ mode: "local-exec" }) as never,
-  useRemoteOpenResolution: () => ({ state: { mode: "local-exec" }, isResolved: true }) as never,
+  useRemoteOpenResolution: () =>
+    ({ state: { mode: state.remote ? "remote-links" : "local-exec" }, isResolved: true }) as never,
 }));
 vi.mock(import("~/hooks/useTheme"), async (original) => ({
   ...(await original()),
@@ -141,11 +144,11 @@ vi.mock(import("./projectFilesQueryState"), async (original) => ({
   ...(await original()),
   useProjectFileQuery: () => ({
     data: state.file,
-    error: null,
+    error: state.read.error,
     isPending: false,
     readError: null,
     isNotFile: false,
-    isFile: true,
+    isFile: state.read.isFile,
     refresh: vi.fn(),
   }),
   getOptimisticProjectFileQueryData: () => state.optimistic,
@@ -174,6 +177,8 @@ function setup() {
   state.optimistic = null;
   state.assetUrl = { _tag: "Loading" };
   state.openedBrowserUrls = [];
+  state.remote = false;
+  state.read = { error: null, isFile: true };
   let mints = 0;
   state.mintUrl.mockReset().mockImplementation(async () => `/assets/report.docx?mint=${++mints}`);
   state.writeFile.mockReset().mockResolvedValue(AsyncResult.success(undefined));
@@ -715,5 +720,50 @@ describe("rendered Markdown select all", () => {
     // A toggled checkbox keeps focus on an input inside the preview.
     await userEvent.click(screen.getByRole("checkbox"));
     await expectFileOnlySelection();
+  });
+});
+
+describe("remote downloads", () => {
+  const button = (screen: { container: HTMLElement }, label: string) =>
+    screen.container.querySelector(`button[aria-label="${label}"]`);
+  const toolbar = async (read: typeof state.read, remote = true) => {
+    using _settings = setup();
+    state.remote = remote;
+    state.read = read;
+    await using screen = await render(documentPreview("mutation-1", "revision-1"));
+    await expect.element(screen.getByTestId("office-preview")).toBeInTheDocument();
+    return {
+      download: button(screen, "Download") !== null,
+      save: button(screen, "Save file") !== null,
+    };
+  };
+
+  it("keeps the preview's Save file on this computer's own environment", async () => {
+    expect(await toolbar({ error: null, isFile: true }, false)).toEqual({
+      download: false,
+      save: true,
+    });
+  });
+
+  it("replaces Save file with Download once a remote file reads as a file", async () => {
+    expect(await toolbar({ error: null, isFile: true })).toEqual({
+      download: true,
+      save: false,
+    });
+  });
+
+  it("offers neither while the read is pending, so a folder never flashes Download", async () => {
+    expect(await toolbar({ error: null, isFile: false })).toEqual({
+      download: false,
+      save: false,
+    });
+  });
+
+  it("keeps Save file when the read fails but the preview still renders", async () => {
+    // A symlink out of the workspace fails the workspace read while its asset still loads.
+    expect(await toolbar({ error: "Outside the workspace", isFile: false })).toEqual({
+      download: false,
+      save: true,
+    });
   });
 });

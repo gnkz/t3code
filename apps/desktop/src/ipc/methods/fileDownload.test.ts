@@ -3,6 +3,7 @@ import * as NodeEvents from "node:events";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import * as Option from "effect/Option";
 import { vi } from "vite-plus/test";
 
 import * as ElectronWindow from "../../electron/ElectronWindow.ts";
@@ -17,6 +18,7 @@ class FakeDownloadItem extends NodeEvents.EventEmitter {
   });
   readonly chain: readonly string[];
   total = 10;
+  contentDisposition = 'attachment; filename="report.pdf"';
   constructor(...chain: string[]) {
     super();
     this.chain = chain;
@@ -27,6 +29,7 @@ class FakeDownloadItem extends NodeEvents.EventEmitter {
   getTotalBytes = () => this.total;
   getSavePath = () => "/Users/me/Downloads/report.pdf";
   getFilename = () => "report.pdf";
+  getContentDisposition = () => this.contentDisposition;
   setSaveDialogOptions = vi.fn();
 }
 
@@ -38,7 +41,7 @@ function makeWindow({ emit = true } = {}) {
   const downloadURL = vi.fn((url: string) => {
     const item = new FakeDownloadItem(url, ...redirects);
     items.push(item);
-    if (emit) session.emit("will-download", {}, item, webContents);
+    if (emit) session.emit("will-download", {}, item, main.webContents);
   });
   webContents.downloadURL = downloadURL;
   const setProgressBar = vi.fn();
@@ -48,13 +51,34 @@ function makeWindow({ emit = true } = {}) {
     isDestroyed: () => window.destroyed,
     setProgressBar,
   };
+  let main: { webContents: { id: number } } = window;
+  // macOS keeps the app running with no window; reopening makes a new one on the same session.
+  const reopen = () => {
+    const reopened = {
+      webContents: { ...webContents, id: 2 },
+      isDestroyed: () => false,
+      setProgressBar: vi.fn(),
+    };
+    main = reopened;
+    return reopened;
+  };
   const run = (url: string, sender = 1) =>
     downloadFile.handler(url, { sender: { id: sender } }).pipe(
       Effect.provideService(ElectronWindow.ElectronWindow, {
-        main: Effect.succeedSome(window),
+        main: Effect.sync(() => Option.some(main)),
       } as unknown as ElectronWindow.ElectronWindow["Service"]),
     );
-  return { session, window, webContents, items, redirects, downloadURL, setProgressBar, run };
+  return {
+    session,
+    window,
+    webContents,
+    items,
+    redirects,
+    downloadURL,
+    setProgressBar,
+    reopen,
+    run,
+  };
 }
 
 it.effect("downloads only signed asset URLs requested by the app window", () =>
@@ -174,5 +198,41 @@ it.effect("shows an indeterminate bar while any running download has no known si
     known.emit("done", {}, "completed");
     yield* Fiber.join(sized);
     yield* Fiber.join(unsized);
+  }),
+);
+
+it.effect("fails a response that is not the asset's attachment before asking where to save", () =>
+  Effect.gen(function* () {
+    const { session, webContents, items, run } = makeWindow({ emit: false });
+    const fiber = yield* Effect.forkChild(run(ASSET_URL), { startImmediately: true });
+    const [item] = items;
+    assert.isDefined(item);
+    // A proxy in front of the server can answer the signed URL with its own login page.
+    item.contentDisposition = "";
+    session.emit("will-download", {}, item, webContents);
+    assert.strictEqual(item.cancel.mock.calls.length, 1);
+    assert.strictEqual(item.setSaveDialogOptions.mock.calls.length, 0);
+    assert.deepEqual(yield* Fiber.join(fiber), { status: "failed" });
+  }),
+);
+
+it.effect("keeps the progress bar on the window that is open now", () =>
+  Effect.gen(function* () {
+    const { window, items, reopen, run } = makeWindow();
+    const first = yield* Effect.forkChild(run(ASSET_URL), { startImmediately: true });
+    window.destroyed = true;
+    const reopened = reopen();
+    const second = yield* Effect.forkChild(run(`${ASSET_URL}?2`, 2), { startImmediately: true });
+    const [earlier, later] = items;
+    assert.isDefined(earlier);
+    assert.isDefined(later);
+    later.emit("done", {}, "completed");
+    earlier.received = 10;
+    earlier.emit("updated", {}, "progressing");
+    assert.deepEqual(reopened.setProgressBar.mock.calls.at(-1), [1]);
+    earlier.emit("done", {}, "completed");
+    assert.deepEqual(reopened.setProgressBar.mock.calls.at(-1), [-1]);
+    yield* Fiber.join(first);
+    yield* Fiber.join(second);
   }),
 );

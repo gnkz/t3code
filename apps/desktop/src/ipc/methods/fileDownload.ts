@@ -33,6 +33,8 @@ interface PendingDownload {
 
 const pendingBySession = new WeakMap<Electron.Session, PendingDownload[]>();
 const activeDownloads = new Set<Electron.DownloadItem>();
+// The bar covers every running download, so it follows the window that asked most recently.
+let progressWindow: Electron.BrowserWindow | null = null;
 
 function pendingDownloads(session: Electron.Session): PendingDownload[] {
   const existing = pendingBySession.get(session);
@@ -55,8 +57,9 @@ function pendingDownloads(session: Electron.Session): PendingDownload[] {
   return pending;
 }
 
-function showProgress(window: Electron.BrowserWindow) {
-  if (window.isDestroyed()) return;
+function showProgress() {
+  const window = progressWindow;
+  if (window === null || window.isDestroyed()) return;
   let received = 0;
   let total = 0;
   let sizeUnknown = false;
@@ -84,6 +87,7 @@ export const downloadFile = makeIpcMethod({
       return FAILED;
     }
     const window = main.value;
+    progressWindow = window;
     return yield* Effect.callback<DesktopFileDownloadResult>((resume) => {
       const pending = pendingDownloads(window.webContents.session);
       const entry: PendingDownload = {
@@ -96,11 +100,18 @@ export const downloadFile = makeIpcMethod({
             resume(Effect.succeed({ status: "cancelled" }));
             return;
           }
+          // The asset route always answers a download with an attachment; anything else, such as an
+          // error or a proxy's login page, fails here instead of asking where to save it.
+          if (!/^\s*attachment\b/i.test(item.getContentDisposition())) {
+            item.cancel();
+            resume(Effect.succeed(FAILED));
+            return;
+          }
           let interrupted = false;
           // Electron titles the Save dialog with the URL, which here carries the signed token.
           item.setSaveDialogOptions({ title: item.getFilename() });
           activeDownloads.add(item);
-          showProgress(window);
+          showProgress();
           item.on("updated", (_updatedEvent, state) => {
             // A dropped connection pauses as resumable rather than ending; fail it so the user can retry.
             if (state === "interrupted") {
@@ -108,11 +119,11 @@ export const downloadFile = makeIpcMethod({
               item.cancel();
               return;
             }
-            showProgress(window);
+            showProgress();
           });
           item.once("done", (_doneEvent, state) => {
             activeDownloads.delete(item);
-            showProgress(window);
+            showProgress();
             resume(
               Effect.succeed(
                 state === "completed"

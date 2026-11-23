@@ -1508,14 +1508,20 @@ export default function FilePreviewPanel({
   // It waits for the read, as reveal does: a chat-linked folder reads as a file until then.
   const downloadPath =
     fileDownload.canDownload && previewPath !== null && file.isFile ? absolutePath : null;
+  // A read that settles without a file, such as a symlink out of the workspace whose asset still
+  // renders, keeps the preview's own Save file.
+  const hidePreviewSave =
+    fileDownload.canDownload &&
+    (downloadPath !== null || (file.data === null && file.error === null));
   const onFilePostRender = useFileLineReveal(relativePath, revealLine, revealRequestId);
   // Mounting the file read under the workspace mutation id refetches it after each mutation.
   useAtomMount(
     canReadFiles &&
       attachment === undefined &&
       relativePath !== null &&
-      // Skip mutation reads for media and documents; folders still detect conversion to files.
-      (isFolder || (!isMedia && !isPdf && !isDocument)) &&
+      // Skip mutation reads for media and documents that read as files; folders and paths not
+      // yet written keep reading, so Download appears once they become files.
+      (!file.isFile || (!isMedia && !isPdf && !isDocument)) &&
       !selectedFilePending
       ? revisionedQuery(
           getProjectFileQueryAtom(environmentId, cwd, relativePath),
@@ -1676,7 +1682,7 @@ export default function FilePreviewPanel({
               draftCwd={draft ? cwd : null}
               name={relativePath}
               copyContents={copyLargeText}
-              hideSave={fileDownload.canDownload}
+              hideSave={hidePreviewSave}
             />
           ) : null}
           {downloadPath ? (
@@ -1801,7 +1807,7 @@ export default function FilePreviewPanel({
               workspaceRoot={cwd}
               title={relativePath}
               workspaceMutationId={workspaceMutationId}
-              hideSave={fileDownload.canDownload}
+              hideSave={hidePreviewSave}
             />
           ) : relativePath && absolutePath && showsLargeText ? (
             <WorkspaceLargeTextPreview
@@ -1836,7 +1842,7 @@ export default function FilePreviewPanel({
               name={relativePath.split(/[\\/]/).at(-1) || relativePath}
               workspaceMutationId={workspaceMutationId}
               refreshRevision={fileRefreshRevision}
-              hideSave={fileDownload.canDownload}
+              hideSave={hidePreviewSave}
             />
           ) : relativePath && file.error && file.data === null ? (
             <div
