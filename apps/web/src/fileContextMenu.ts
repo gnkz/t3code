@@ -16,7 +16,7 @@ import { readLocalApi } from "./localApi";
 import { serverEnvironment } from "./state/server";
 import { shellEnvironment } from "./state/shell";
 import { useAtomCommand } from "./state/use-atom-command";
-import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
+import { isWindowsAbsolutePath } from "@t3tools/shared/path";
 import { toastManager } from "./components/ui/toast";
 import { useAtomValue } from "@effect/atom-react";
 import { msg, useMessages } from "gt-react";
@@ -53,7 +53,10 @@ export function resolveFileContextMenuAbsolutePath(target: FileContextMenuTarget
       ? workspaceFilePath
       : null;
   }
-  return resolvePathLinkTarget(workspaceFilePath, target.workspaceRoot);
+  // Menu targets name workspace files, not chat links: `~/x` and `notes:0` are literal names.
+  if (workspaceFilePath === "") return target.workspaceRoot;
+  const separator = isWindowsAbsolutePath(target.workspaceRoot) ? "\\" : "/";
+  return `${target.workspaceRoot.replace(/[/\\]+$/, "")}${separator}${workspaceFilePath.replaceAll("/", separator)}`;
 }
 
 const EDITOR_LABEL_BY_ID = new Map(EDITORS.map((editor) => [editor.id, editor.label]));

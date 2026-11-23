@@ -33,6 +33,21 @@ describe("resolveFileContextMenuAbsolutePath", () => {
     ).toBeNull();
   });
 
+  it("joins workspace names literally, never as home or line links", () => {
+    for (const filePath of ["~/report.txt", "notes:0", "notes:01"]) {
+      expect(resolveFileContextMenuAbsolutePath({ ...BASE_TARGET, filePath })).toBe(
+        `/workspace/project/${filePath}`,
+      );
+    }
+    expect(
+      resolveFileContextMenuAbsolutePath({
+        ...BASE_TARGET,
+        workspaceRoot: "C:\\work\\project",
+        filePath: "src/index.ts",
+      }),
+    ).toBe("C:\\work\\project\\src\\index.ts");
+  });
+
   it("rejects absolute paths without a workspace root, matching diff path resolution", () => {
     expect(
       resolveFileContextMenuAbsolutePath({

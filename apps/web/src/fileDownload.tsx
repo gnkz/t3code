@@ -120,8 +120,15 @@ async function downloadHostFile(
   target: FileDownloadTarget,
 ): Promise<void> {
   const resource = fileDownloadResource(target);
-  if (resource === null) return;
   const name = hostPathBasename(target.path);
+  // Never fail silently: a chip resolves its host path late, after the gate saw its link text.
+  if (resource === null) {
+    toastManager.add({
+      type: "error",
+      title: <FileDownloadToastTitle phase="failed" name={name} />,
+    });
+    return;
+  }
   const toastId = toastManager.add({
     type: "info",
     title: <FileDownloadToastTitle phase="downloading" name={name} />,
