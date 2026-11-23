@@ -1504,14 +1504,23 @@ export default function FilePreviewPanel({
       : relativePath && attachment === undefined
         ? resolvePathLinkTarget(relativePath, cwd)
         : null;
-  // Download streams to disk, so it replaces the previews' own Save file, which buffers the file.
-  // It waits for the read, as reveal does: a chat-linked folder reads as a file until then.
+  // PDFs, large text, and document previews render their own Save file, which buffers the file.
+  const previewSaves =
+    isPdf ||
+    showsLargeText ||
+    (!isMedia && !renderBrowserFile && (isDocument || file.readError?.failure === "binary_file"));
+  // Download streams to disk, so it replaces that Save file. A draft keeps it instead: a draft's
+  // Download needs a server that signs attachments for any file, while Save file works on any.
+  // Download waits for the read, as reveal does: a chat-linked folder reads as a file until then.
   const downloadPath =
-    fileDownload.canDownload && previewPath !== null && file.isFile ? absolutePath : null;
+    fileDownload.canDownload && previewPath !== null && file.isFile && !(draft && previewSaves)
+      ? absolutePath
+      : null;
   // A read that settles without a file, such as a symlink out of the workspace whose asset still
   // renders, keeps the preview's own Save file.
   const hidePreviewSave =
     fileDownload.canDownload &&
+    !draft &&
     (downloadPath !== null || (file.data === null && file.error === null));
   const onFilePostRender = useFileLineReveal(relativePath, revealLine, revealRequestId);
   // Mounting the file read under the workspace mutation id refetches it after each mutation.
@@ -1959,6 +1968,7 @@ export default function FilePreviewPanel({
                 onOpenFile={onOpenFile}
                 answersPanelFind={!previewPath}
                 workspaceMutationId={workspaceMutationId}
+                threadId={draft ? null : threadRef.threadId}
                 {...(previewPath && !isMedia && !isPdf
                   ? {
                       onRefreshSelectedFile: () => {

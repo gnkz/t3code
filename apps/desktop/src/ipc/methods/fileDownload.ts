@@ -100,9 +100,12 @@ export const downloadFile = makeIpcMethod({
             resume(Effect.succeed({ status: "cancelled" }));
             return;
           }
-          // The asset route always answers a download with an attachment; anything else, such as an
-          // error or a proxy's login page, fails here instead of asking where to save it.
-          if (!/^\s*attachment\b/i.test(item.getContentDisposition())) {
+          // The asset route answers a download as an octet-stream attachment (a proxy may strip the
+          // header); anything else, such as an error or a login page, fails before the Save dialog.
+          if (
+            !/^\s*attachment\b/i.test(item.getContentDisposition()) &&
+            item.getMimeType() !== "application/octet-stream"
+          ) {
             item.cancel();
             resume(Effect.succeed(FAILED));
             return;

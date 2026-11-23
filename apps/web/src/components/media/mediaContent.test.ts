@@ -86,5 +86,5 @@ it("refuses to save a response that is not the expected type", async () => {
       "report.pdf",
       "application/octet-stream",
     ),
-  ).rejects.toThrow("The file could not be loaded. Try again.");
+  ).resolves.toBe(false);
 });

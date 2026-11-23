@@ -164,6 +164,7 @@ vi.mock(import("./projectFilesQueryState"), async (original) => ({
   confirmProjectFileQueryData: () => true,
 }));
 
+import { DraftId } from "~/composerDraftStore";
 import FilePreviewPanel from "./FilePreviewPanel";
 
 const environmentId = EnvironmentId.make("markdown-preview-test");
@@ -203,7 +204,11 @@ function markdownPreview(truncated: boolean, contents = "- [ ] Keep the rest of 
   return filePreview("tasks.md");
 }
 
-function filePreview(relativePath: string, workspaceMutationId: string | null = null) {
+function filePreview(
+  relativePath: string,
+  workspaceMutationId: string | null = null,
+  composerDraftTarget: typeof threadRef | DraftId = threadRef,
+) {
   return (
     <FilePreviewPanel
       environmentId={environmentId}
@@ -211,7 +216,7 @@ function filePreview(relativePath: string, workspaceMutationId: string | null = 
       projectName="Project"
       relativePath={relativePath}
       threadRef={threadRef}
-      composerDraftTarget={threadRef}
+      composerDraftTarget={composerDraftTarget}
       keybindings={[]}
       availableEditors={[]}
       openInShortcutEnabled={false}
@@ -227,7 +232,11 @@ function filePreview(relativePath: string, workspaceMutationId: string | null = 
   );
 }
 
-function documentPreview(workspaceMutationId: string, fileRevision: string) {
+function documentPreview(
+  workspaceMutationId: string,
+  fileRevision: string,
+  composerDraftTarget: typeof threadRef | DraftId = threadRef,
+) {
   state.file = null;
   state.assetUrl = {
     _tag: "Success",
@@ -235,7 +244,7 @@ function documentPreview(workspaceMutationId: string, fileRevision: string) {
     expiresAt: Number.MAX_SAFE_INTEGER,
     fileRevision,
   };
-  return filePreview("report.docx", workspaceMutationId);
+  return filePreview("report.docx", workspaceMutationId, composerDraftTarget);
 }
 
 function deepActiveElement() {
@@ -726,11 +735,15 @@ describe("rendered Markdown select all", () => {
 describe("remote downloads", () => {
   const button = (screen: { container: HTMLElement }, label: string) =>
     screen.container.querySelector(`button[aria-label="${label}"]`);
-  const toolbar = async (read: typeof state.read, remote = true) => {
+  const toolbar = async (
+    read: typeof state.read,
+    remote = true,
+    target: typeof threadRef | DraftId = threadRef,
+  ) => {
     using _settings = setup();
     state.remote = remote;
     state.read = read;
-    await using screen = await render(documentPreview("mutation-1", "revision-1"));
+    await using screen = await render(documentPreview("mutation-1", "revision-1", target));
     await expect.element(screen.getByTestId("office-preview")).toBeInTheDocument();
     return {
       download: button(screen, "Download") !== null,
@@ -765,5 +778,11 @@ describe("remote downloads", () => {
       download: false,
       save: true,
     });
+  });
+
+  it("keeps a draft's own Save file, which works on servers too old for its Download", async () => {
+    expect(
+      await toolbar({ error: null, isFile: true }, true, DraftId.make("unsent-draft")),
+    ).toEqual({ download: false, save: true });
   });
 });

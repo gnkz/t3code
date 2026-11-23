@@ -100,9 +100,11 @@ async function mintDownloadUrl(
 async function saveDownload(url: string, name: string) {
   const downloadFile = window.desktopBridge?.downloadFile;
   if (downloadFile === undefined) {
-    // The asset route serves every download as octet-stream; anything else is not the file.
-    await downloadMedia(url, name, "application/octet-stream");
-    return { status: "saved" as const };
+    // The asset route serves every download as octet-stream; anything else (a proxy's error page,
+    // or an older server's inline preview) is not the file.
+    return (await downloadMedia(url, name, "application/octet-stream"))
+      ? { status: "saved" as const }
+      : { status: "failed" as const };
   }
   return downloadFile(url);
 }

@@ -3,6 +3,7 @@ import {
   type ContextMenuItem,
   type EditorId,
   type EnvironmentId,
+  type ThreadId,
 } from "@t3tools/contracts";
 
 import { resolveDiffPathForWorkspace } from "./diffFileActions";
@@ -120,7 +121,11 @@ export function buildFileContextMenuItems(input: {
   return items;
 }
 
-export function useFileContextMenu(environmentId: EnvironmentId | null) {
+/** `threadId`, a saved thread's, lets Download use the path older servers already sign. */
+export function useFileContextMenu(
+  environmentId: EnvironmentId | null,
+  threadId?: ThreadId | null,
+) {
   const openInEditor = useAtomCommand(shellEnvironment.openInEditor, { reportFailure: false });
   const serverConfig = useAtomValue(serverEnvironment.configValueAtom(environmentId));
   const resolve = useMessages();
@@ -150,7 +155,11 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
     if (absolutePath === null || environmentId === null) return;
     if (action === "download") {
       if (canDownloadTarget(target, absolutePath, capabilities)) {
-        fileDownload.download({ path: absolutePath, workspaceRoot: target.workspaceRoot });
+        fileDownload.download({
+          path: absolutePath,
+          threadId,
+          workspaceRoot: target.workspaceRoot,
+        });
       }
       return;
     }
@@ -204,8 +213,11 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
   };
 }
 
-export function useFileContextMenuHandler(environmentId: EnvironmentId | null) {
-  const contextMenu = useFileContextMenu(environmentId);
+export function useFileContextMenuHandler(
+  environmentId: EnvironmentId | null,
+  threadId?: ThreadId | null,
+) {
+  const contextMenu = useFileContextMenu(environmentId, threadId);
   return (target: FileContextMenuTarget, event?: { clientX: number; clientY: number }) => {
     void contextMenu.show(target, event ? { x: event.clientX, y: event.clientY } : undefined);
   };

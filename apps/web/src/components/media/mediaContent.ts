@@ -79,12 +79,10 @@ async function readMediaBlob(src: string): Promise<Blob> {
   return blob;
 }
 
-/** `type` rejects a response of any other media type, such as a proxy's error page. */
-export async function downloadMedia(src: string, name: string, type?: string): Promise<void> {
+/** With `type`, a response of any other media type is not saved and the result is false. */
+export async function downloadMedia(src: string, name: string, type?: string): Promise<boolean> {
   const blob = await readMediaBlob(src);
-  if (type !== undefined && blob.type.split(";", 1)[0] !== type) {
-    throw new Error(m(msg("The file could not be loaded. Try again.")));
-  }
+  if (type !== undefined && blob.type.split(";", 1)[0] !== type) return false;
   const url = URL.createObjectURL(blob);
   try {
     const anchor = document.createElement("a");
@@ -94,6 +92,7 @@ export async function downloadMedia(src: string, name: string, type?: string): P
   } finally {
     setTimeout(() => URL.revokeObjectURL(url), 30_000);
   }
+  return true;
 }
 
 export async function readMediaPng(src: string): Promise<Blob> {

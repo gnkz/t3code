@@ -485,7 +485,10 @@ function AssistantChangedFilesSectionInner({
       ? { environmentId: thread.environmentId, projectId: thread.projectId }
       : null,
   );
-  const onFileContextMenu = useFileContextMenuHandler(ctx.activeThreadEnvironmentId);
+  const onFileContextMenu = useFileContextMenuHandler(
+    ctx.activeThreadEnvironmentId,
+    ctx.threadRef?.threadId,
+  );
   const repositoryRoot = useAtomValue(
     ctx.workspaceRoot
       ? vcsEnvironment.status({

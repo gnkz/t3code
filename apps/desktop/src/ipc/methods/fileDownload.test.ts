@@ -30,6 +30,8 @@ class FakeDownloadItem extends NodeEvents.EventEmitter {
   getSavePath = () => "/Users/me/Downloads/report.pdf";
   getFilename = () => "report.pdf";
   getContentDisposition = () => this.contentDisposition;
+  mimeType = "application/octet-stream";
+  getMimeType = () => this.mimeType;
   setSaveDialogOptions = vi.fn();
 }
 
@@ -209,6 +211,7 @@ it.effect("fails a response that is not the asset's attachment before asking whe
     assert.isDefined(item);
     // A proxy in front of the server can answer the signed URL with its own login page.
     item.contentDisposition = "";
+    item.mimeType = "text/html";
     session.emit("will-download", {}, item, webContents);
     assert.strictEqual(item.cancel.mock.calls.length, 1);
     assert.strictEqual(item.setSaveDialogOptions.mock.calls.length, 0);
@@ -234,5 +237,22 @@ it.effect("keeps the progress bar on the window that is open now", () =>
     assert.deepEqual(reopened.setProgressBar.mock.calls.at(-1), [-1]);
     yield* Fiber.join(first);
     yield* Fiber.join(second);
+  }),
+);
+
+it.effect("keeps an octet-stream response whose proxy dropped the attachment header", () =>
+  Effect.gen(function* () {
+    const { session, webContents, items, run } = makeWindow({ emit: false });
+    const fiber = yield* Effect.forkChild(run(ASSET_URL), { startImmediately: true });
+    const [item] = items;
+    assert.isDefined(item);
+    item.contentDisposition = "";
+    session.emit("will-download", {}, item, webContents);
+    assert.strictEqual(item.cancel.mock.calls.length, 0);
+    item.emit("done", {}, "completed");
+    assert.deepEqual(yield* Fiber.join(fiber), {
+      status: "completed",
+      path: "/Users/me/Downloads/report.pdf",
+    });
   }),
 );
