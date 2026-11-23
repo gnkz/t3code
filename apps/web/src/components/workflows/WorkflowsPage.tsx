@@ -104,7 +104,11 @@ export function WorkflowsPage() {
     if (api === undefined || directory === undefined || search.file === undefined) return;
     event.preventDefault();
     const path = `${directory}/${search.file}`;
-    const target = { environmentId: fileEnvironmentId, filePath: path, workspaceRoot: undefined };
+    const target = {
+      environmentId: fileEnvironmentId,
+      filePath: search.file,
+      workspaceRoot: directory,
+    };
     void api.contextMenu
       .show([{ id: COPY_PATH, label: gt("Copy path") }, ...fileMenu.buildItems(target)], {
         x: event.clientX,

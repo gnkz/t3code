@@ -280,7 +280,10 @@ export default function DiffPanel({
   const serverConfig = useAtomValue(
     serverEnvironment.configValueAtom(activeThread?.environmentId ?? null),
   );
-  const onFileContextMenu = useFileContextMenuHandler(activeThread?.environmentId ?? null);
+  const onFileContextMenu = useFileContextMenuHandler(
+    activeThread?.environmentId ?? null,
+    activeThread ? activeThreadId : null,
+  );
   const openInPreferredEditor = useOpenInPreferredEditor(
     activeThread?.environmentId ?? null,
     serverConfig?.availableEditors ?? [],
@@ -1691,8 +1694,9 @@ export default function DiffPanel({
                       (node): node is HTMLElement =>
                         node instanceof HTMLElement && node.hasAttribute("data-title"),
                     );
-                    const filePath = title?.textContent?.trim();
-                    if (!filePath) return;
+                    // Untrimmed, as the header's click handler reads it: a name may end in a space.
+                    const filePath = title?.textContent;
+                    if (!filePath?.trim()) return;
                     event.preventDefault();
                     const repositoryFile = repositoryFileTarget(filePath);
                     onFileContextMenu(

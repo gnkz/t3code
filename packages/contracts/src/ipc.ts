@@ -1085,6 +1085,12 @@ export const DesktopMediaReadSchema = Schema.Struct({
 });
 export type DesktopMediaRead = typeof DesktopMediaReadSchema.Type;
 
+export const DesktopFileDownloadResultSchema = Schema.Union([
+  Schema.Struct({ status: Schema.Literal("completed"), path: Schema.String }),
+  Schema.Struct({ status: Schema.Literals(["cancelled", "failed"]) }),
+]);
+export type DesktopFileDownloadResult = typeof DesktopFileDownloadResultSchema.Type;
+
 /** `value` is the resolved locale from `prepare` and the transcript from `transcribe`. */
 export const DesktopAppleSpeechResultSchema = Schema.Union([
   Schema.Struct({ ok: Schema.Literal(true), value: Schema.String }),
@@ -1204,6 +1210,8 @@ export interface DesktopBridge {
   openExternal: (url: string) => Promise<boolean>;
   /** Reads http(s) media in the main process, outside renderer CORS and CSP; null on network failure. */
   readMedia: (url: string) => Promise<DesktopMediaRead | null>;
+  /** Streams a signed asset download URL to a file the user picks in the native Save dialog. */
+  downloadFile: (url: string) => Promise<DesktopFileDownloadResult>;
   openSystemSettings: (pane: SystemSettingsPane) => Promise<boolean>;
   checkSystemPermission: (pane: SystemSettingsPane) => Promise<boolean>;
   probeRemoteEditors: () => Promise<readonly EditorId[]>;

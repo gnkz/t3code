@@ -111,6 +111,8 @@ export function AttachmentFilePreview(props: {
   htmlRender?: boolean;
   threadRef?: ScopedThreadRef;
   origin?: string;
+  /** The host's own Download replaces Save file. */
+  hideSave?: boolean;
   onRemove?: () => void;
   onClose?: () => void;
 }) {
@@ -485,7 +487,7 @@ export function AttachmentFilePreview(props: {
             {isCopied ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
           </FileSurfaceAction>
         ) : null}
-        {url ? (
+        {url && !props.hideSave ? (
           <FileSurfaceAction
             label={saving ? gt("Preparing file…") : gt("Save file")}
             disabled={saving}

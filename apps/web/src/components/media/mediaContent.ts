@@ -79,8 +79,11 @@ async function readMediaBlob(src: string): Promise<Blob> {
   return blob;
 }
 
-export async function downloadMedia(src: string, name: string): Promise<void> {
-  const url = URL.createObjectURL(await readMediaBlob(src));
+/** With `type`, a response of any other media type (a web page included) is not saved: false. */
+export async function downloadMedia(src: string, name: string, type?: string): Promise<boolean> {
+  const blob = type === undefined ? await readMediaBlob(src) : await fetchMediaBlob(src);
+  if (type !== undefined && blob.type.split(";", 1)[0] !== type) return false;
+  const url = URL.createObjectURL(blob);
   try {
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -89,6 +92,7 @@ export async function downloadMedia(src: string, name: string): Promise<void> {
   } finally {
     setTimeout(() => URL.revokeObjectURL(url), 30_000);
   }
+  return true;
 }
 
 export async function readMediaPng(src: string): Promise<Blob> {

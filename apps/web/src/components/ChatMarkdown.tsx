@@ -148,6 +148,7 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { hostEnvironmentIdAtom } from "../state/primaryEnvironment";
 import { cn } from "../lib/utils";
 import { resolveRemoteOpenState, useRemoteOpenResolution } from "../remoteOpen";
+import { isDownloadablePath, useFileDownload } from "../fileDownload";
 import { rightPanelHostRef, useRightPanelStore } from "../rightPanelStore";
 import { useOpenIssueLink } from "../lib/openIssueLink";
 import { issueTrackerEnvironment } from "../state/issueTrackers";
@@ -650,6 +651,7 @@ function useChatMarkdownState(
   const canOperatePreview = useEnvironmentScope(environmentId, AuthPreviewOperateScope);
   const isClientHost = useAtomValue(clientHostEnvironmentAtom(environmentId));
   const remoteOpen = useRemoteOpenResolution(environmentId);
+  const fileDownload = useFileDownload(environmentId);
   const canUseShellActions =
     canOperateHost &&
     canUseMarkdownFileShellActions(environmentId, remoteOpen.state.mode, remoteOpen.isResolved);
@@ -994,6 +996,9 @@ function useChatMarkdownState(
         findWorkspaceMatch: () => findWorkspaceFileMatch(fileLinkMeta),
       });
     const isAppBundle = isMacOS && fileLinkMeta.filePath.endsWith(".app");
+    // A draft thread does not exist on the server yet; its workspace root does.
+    const downloadThreadId =
+      threadRef !== undefined && readThreadShell(threadRef) !== null ? threadRef.threadId : null;
     const canOpenApp =
       environmentId !== null &&
       isAppBundle &&
@@ -1068,6 +1073,20 @@ function useChatMarkdownState(
             : undefined
         }
         revealLabel={revealInFileManagerLabel}
+        onDownload={
+          fileDownload.canDownload &&
+          !isAppBundle &&
+          !/[\\/]$/.test(fileLinkMeta.filePath) &&
+          isDownloadablePath(fileLinkMeta.filePath) &&
+          (downloadThreadId !== null || cwd !== undefined)
+            ? async () =>
+                fileDownload.download({
+                  path: (await resolveHostPath()).absolutePath,
+                  threadId: downloadThreadId,
+                  workspaceRoot: cwd,
+                })
+            : undefined
+        }
         onOpenInBrowser={
           threadRef &&
           canOperatePreview &&

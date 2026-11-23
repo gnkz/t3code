@@ -21,6 +21,9 @@ const state = vi.hoisted(() => ({
   mintUrl: vi.fn<() => Promise<string | null>>(),
   browserAssetMints: 0,
   openedBrowserUrls: [] as string[],
+  remote: false,
+  read: { error: null as string | null, isFile: true },
+  mintedPaths: [] as string[],
 }));
 
 vi.mock(import("@t3tools/client-runtime/state/runtime"), async (original) => ({
@@ -32,6 +35,7 @@ vi.mock(import("~/state/session"), async (original) => ({
   ...(await original()),
   readEnvironmentScope: () => true,
   useEnvironmentScope: () => true,
+  readPreparedConnection: (() => ({ httpBaseUrl: "http://environment.test" })) as never,
 }));
 vi.mock(import("~/state/filesystem"), async (original) => ({
   ...(await original()),
@@ -53,7 +57,8 @@ vi.mock(import("~/state/server"), async (original) => {
 vi.mock(import("~/remoteOpen"), async (original) => ({
   ...(await original()),
   useRemoteOpenState: () => ({ mode: "local-exec" }) as never,
-  useRemoteOpenResolution: () => ({ state: { mode: "local-exec" }, isResolved: true }) as never,
+  useRemoteOpenResolution: () =>
+    ({ state: { mode: state.remote ? "remote-links" : "local-exec" }, isResolved: true }) as never,
 }));
 vi.mock(import("~/hooks/useTheme"), async (original) => ({
   ...(await original()),
@@ -92,8 +97,10 @@ vi.mock(import("~/state/assets"), async (original) => {
     ...actual,
     assetEnvironment: {
       ...actual.assetEnvironment,
-      createUrl: ((target: { input: { resource: { path: string } } }) =>
-        createUrl(target.input.resource.path)) as never,
+      createUrl: ((target: { input: { resource: { path: string } } }) => {
+        state.mintedPaths.push(target.input.resource.path);
+        return createUrl(target.input.resource.path);
+      }) as never,
     },
   };
 });
@@ -141,11 +148,11 @@ vi.mock(import("./projectFilesQueryState"), async (original) => ({
   ...(await original()),
   useProjectFileQuery: () => ({
     data: state.file,
-    error: null,
+    error: state.read.error,
     isPending: false,
     readError: null,
     isNotFile: false,
-    isFile: true,
+    isFile: state.read.isFile,
     refresh: vi.fn(),
   }),
   getOptimisticProjectFileQueryData: () => state.optimistic,
@@ -161,6 +168,7 @@ vi.mock(import("./projectFilesQueryState"), async (original) => ({
   confirmProjectFileQueryData: () => true,
 }));
 
+import { DraftId } from "~/composerDraftStore";
 import FilePreviewPanel from "./FilePreviewPanel";
 
 const environmentId = EnvironmentId.make("markdown-preview-test");
@@ -174,6 +182,9 @@ function setup() {
   state.optimistic = null;
   state.assetUrl = { _tag: "Loading" };
   state.openedBrowserUrls = [];
+  state.remote = false;
+  state.read = { error: null, isFile: true };
+  state.mintedPaths = [];
   let mints = 0;
   state.mintUrl.mockReset().mockImplementation(async () => `/assets/report.docx?mint=${++mints}`);
   state.writeFile.mockReset().mockResolvedValue(AsyncResult.success(undefined));
@@ -198,15 +209,20 @@ function markdownPreview(truncated: boolean, contents = "- [ ] Keep the rest of 
   return filePreview("tasks.md");
 }
 
-function filePreview(relativePath: string, workspaceMutationId: string | null = null) {
+function filePreview(
+  relativePath: string,
+  workspaceMutationId: string | null = null,
+  composerDraftTarget: typeof threadRef | DraftId = threadRef,
+  cwd = "/workspace",
+) {
   return (
     <FilePreviewPanel
       environmentId={environmentId}
-      cwd="/workspace"
+      cwd={cwd}
       projectName="Project"
       relativePath={relativePath}
       threadRef={threadRef}
-      composerDraftTarget={threadRef}
+      composerDraftTarget={composerDraftTarget}
       keybindings={[]}
       availableEditors={[]}
       openInShortcutEnabled={false}
@@ -222,7 +238,11 @@ function filePreview(relativePath: string, workspaceMutationId: string | null = 
   );
 }
 
-function documentPreview(workspaceMutationId: string, fileRevision: string) {
+function documentPreview(
+  workspaceMutationId: string,
+  fileRevision: string,
+  composerDraftTarget: typeof threadRef | DraftId = threadRef,
+) {
   state.file = null;
   state.assetUrl = {
     _tag: "Success",
@@ -230,7 +250,7 @@ function documentPreview(workspaceMutationId: string, fileRevision: string) {
     expiresAt: Number.MAX_SAFE_INTEGER,
     fileRevision,
   };
-  return filePreview("report.docx", workspaceMutationId);
+  return filePreview("report.docx", workspaceMutationId, composerDraftTarget);
 }
 
 function deepActiveElement() {
@@ -715,5 +735,91 @@ describe("rendered Markdown select all", () => {
     // A toggled checkbox keeps focus on an input inside the preview.
     await userEvent.click(screen.getByRole("checkbox"));
     await expectFileOnlySelection();
+  });
+});
+
+describe("remote downloads", () => {
+  const button = (screen: { container: HTMLElement }, label: string) =>
+    screen.container.querySelector(`button[aria-label="${label}"]`);
+  const toolbar = async (
+    read: typeof state.read,
+    remote = true,
+    target: typeof threadRef | DraftId = threadRef,
+  ) => {
+    using _settings = setup();
+    state.remote = remote;
+    state.read = read;
+    await using screen = await render(documentPreview("mutation-1", "revision-1", target));
+    await expect.element(screen.getByTestId("office-preview")).toBeInTheDocument();
+    return {
+      download: button(screen, "Download") !== null,
+      save: button(screen, "Save file") !== null,
+    };
+  };
+
+  it("keeps the preview's Save file on this computer's own environment", async () => {
+    expect(await toolbar({ error: null, isFile: true }, false)).toEqual({
+      download: false,
+      save: true,
+    });
+  });
+
+  it("replaces Save file with Download once a remote file reads as a file", async () => {
+    expect(await toolbar({ error: null, isFile: true })).toEqual({
+      download: true,
+      save: false,
+    });
+  });
+
+  it("offers neither while the read is pending, so a folder never flashes Download", async () => {
+    expect(await toolbar({ error: null, isFile: false })).toEqual({
+      download: false,
+      save: false,
+    });
+  });
+
+  it("keeps Save file when the read fails but the preview still renders", async () => {
+    // A symlink out of the workspace fails the workspace read while its asset still loads.
+    expect(await toolbar({ error: "Outside the workspace", isFile: false })).toEqual({
+      download: false,
+      save: true,
+    });
+  });
+
+  it("keeps a draft's own Save file, which works on servers too old for its Download", async () => {
+    expect(
+      await toolbar({ error: null, isFile: true }, true, DraftId.make("unsent-draft")),
+    ).toEqual({ download: false, save: true });
+  });
+
+  it("gives a draft's large text Download, since its Save file needs the same server", async () => {
+    using _settings = setup();
+    state.remote = true;
+    state.file = {
+      relativePath: "big.log",
+      contents: "x\n",
+      byteLength: 1_200_000,
+      truncated: true,
+    };
+    await using screen = await render(filePreview("big.log", null, DraftId.make("unsent-draft")));
+    await vi.waitFor(() => expect(button(screen, "Download")).not.toBeNull());
+    expect(button(screen, "Save file")).toBeNull();
+  });
+
+  it.each([
+    // A line-like name is the file the read showed, not a link to `notes` line 0.
+    ["notes:0", "/home/bob/project/notes:0"],
+    // The server expands `~/` from its own home; guessing `/home/bob` from the workspace can miss.
+    ["~/report.txt", "~/report.txt"],
+  ])("downloads the file the read showed for %s", async (relativePath, signedPath) => {
+    using _settings = setup();
+    state.remote = true;
+    state.file = { relativePath, contents: "x\n", byteLength: 2, truncated: false };
+    await using screen = await render(
+      filePreview(relativePath, null, threadRef, "/home/bob/project"),
+    );
+    await vi.waitFor(() => expect(button(screen, "Download")).not.toBeNull());
+    (button(screen, "Download") as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(state.mintedPaths).toContain(signedPath));
   });
 });
