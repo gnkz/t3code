@@ -5623,6 +5623,12 @@
   "bb60a3700a8053c6": "Weitere Treffer verfügbar. Verfeinere deine Suche.",
   "ffe1f2305d0a274d": "Dateien werden geladen…",
   "723d88a5fa7e2fdd": "Keine passenden Dateien.",
+  "92e32bf5eadbc270": [{ "i": 1, "k": "_gt_value_1", "v": "v" }, " wird heruntergeladen"],
+  "b1a9ac3452650e03": [{ "i": 1, "k": "_gt_value_1", "v": "v" }, " heruntergeladen"],
+  "7d18baae06c45883": [
+    { "i": 1, "k": "_gt_value_1", "v": "v" },
+    " konnte nicht heruntergeladen werden"
+  ],
   "f8d6e9a1a2870a5c": "Datei-Explorer",
   "109edd252917113b": "Größe des Datei-Explorers ändern",
   "37cbd2ecc659a007": "Datei",
@@ -7365,7 +7371,6 @@
   "d9c427b8eee47ebd": "Über {name}",
   "141ddaa6208b57d1": "{name} bereits hinzugefügt",
   "904cfc367ae339b3": "{name} wird heruntergeladen",
-  "487adbb113080dff": "{name} heruntergeladen",
   "1640648c0bcc005a": "{name} wird vorbereitet",
   "78fe566629329484": "{name} hinzufügen",
   "76ba386d44714717": "Hinzugefügt",

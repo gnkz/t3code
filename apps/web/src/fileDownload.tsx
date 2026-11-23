@@ -11,6 +11,7 @@ import * as Schema from "effect/Schema";
 import { msg } from "gt-react";
 
 import { resolveAssetUrl } from "./assets/assetUrls";
+import { FileDownloadToastTitle } from "./components/files/FileDownloadToastTitle";
 import { downloadMedia } from "./components/media/mediaContent";
 import { toastManager } from "./components/ui/toast";
 import { m } from "./i18n/messages";
@@ -106,7 +107,7 @@ async function downloadHostFile(
   const name = hostPathBasename(target.path);
   const toastId = toastManager.add({
     type: "info",
-    title: m(msg("Downloading {name}", { name })),
+    title: <FileDownloadToastTitle phase="downloading" name={name} />,
     timeout: 0,
     data: { hideCopyButton: true },
   });
@@ -118,7 +119,7 @@ async function downloadHostFile(
   if (outcome.status === "completed") {
     toastManager.add({
       type: "success",
-      title: m(msg("Downloaded {name}", { name })),
+      title: <FileDownloadToastTitle phase="downloaded" name={name} />,
       description: outcome.path,
       data: { hideCopyButton: true },
     });
@@ -126,7 +127,7 @@ async function downloadHostFile(
   }
   toastManager.add({
     type: "error",
-    title: m(msg("Could not download {name}", { name })),
+    title: <FileDownloadToastTitle phase="failed" name={name} />,
     description:
       outcome.status === "error"
         ? (thrownErrorMessage(outcome.cause, m) ?? m(msg("Please try again.")))
