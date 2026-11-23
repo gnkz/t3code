@@ -1519,9 +1519,11 @@ export default function FilePreviewPanel({
     canReadFiles &&
       attachment === undefined &&
       relativePath !== null &&
-      // Skip mutation reads for media and documents that read as files; folders and paths not
-      // yet written keep reading, so Download appears once they become files.
-      (!file.isFile || (!isMedia && !isPdf && !isDocument)) &&
+      // Skip mutation reads for media and documents; folders still detect conversion to files,
+      // and where Download is offered a path not yet a file keeps reading until it is one.
+      (isFolder ||
+        (fileDownload.canDownload && !file.isFile) ||
+        (!isMedia && !isPdf && !isDocument)) &&
       !selectedFilePending
       ? revisionedQuery(
           getProjectFileQueryAtom(environmentId, cwd, relativePath),

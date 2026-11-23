@@ -79,8 +79,13 @@ async function readMediaBlob(src: string): Promise<Blob> {
   return blob;
 }
 
-export async function downloadMedia(src: string, name: string): Promise<void> {
-  const url = URL.createObjectURL(await readMediaBlob(src));
+/** `type` rejects a response of any other media type, such as a proxy's error page. */
+export async function downloadMedia(src: string, name: string, type?: string): Promise<void> {
+  const blob = await readMediaBlob(src);
+  if (type !== undefined && blob.type.split(";", 1)[0] !== type) {
+    throw new Error(m(msg("The file could not be loaded. Try again.")));
+  }
+  const url = URL.createObjectURL(blob);
   try {
     const anchor = document.createElement("a");
     anchor.href = url;

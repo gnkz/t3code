@@ -1,6 +1,7 @@
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import { executeAtomQuery, squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import {
+  AssetPreviewTypeValidationError,
   AssetWorkspaceAssetNotFoundError,
   AuthFilesystemReadScope,
   type AssetResource,
@@ -59,6 +60,8 @@ export function canDownloadFromEnvironment(
 }
 
 const isAssetNotFoundError = Schema.is(AssetWorkspaceAssetNotFoundError);
+// Older servers only sign previewable workspace files, even as attachments.
+const isPreviewOnlyServerError = Schema.is(AssetPreviewTypeValidationError);
 
 function hostPathBasename(path: string): string {
   return path.split(/[\\/]/).findLast((part) => part.length > 0) ?? path;
@@ -77,9 +80,13 @@ async function mintDownloadUrl(
   );
   if (result._tag === "Failure") {
     const cause = squashAtomCommandFailure(result);
-    throw isAssetNotFoundError(cause)
-      ? new Error(m(msg("The file was not found. It may have been moved or deleted.")))
-      : cause;
+    if (isAssetNotFoundError(cause)) {
+      throw new Error(m(msg("The file was not found. It may have been moved or deleted.")));
+    }
+    if (isPreviewOnlyServerError(cause)) {
+      throw new Error(m(msg("Update T3 Code on that machine to download this file.")));
+    }
+    throw cause;
   }
   // Read after minting: a mint that retried on another route must use that route's address.
   const connection = readPreparedConnection(environmentId);
@@ -93,7 +100,8 @@ async function mintDownloadUrl(
 async function saveDownload(url: string, name: string) {
   const downloadFile = window.desktopBridge?.downloadFile;
   if (downloadFile === undefined) {
-    await downloadMedia(url, name);
+    // The asset route serves every download as octet-stream; anything else is not the file.
+    await downloadMedia(url, name, "application/octet-stream");
     return { status: "saved" as const };
   }
   return downloadFile(url);
@@ -132,7 +140,11 @@ async function downloadHostFile(
     description:
       outcome.status === "error"
         ? (thrownErrorMessage(outcome.cause, m) ?? m(msg("Please try again.")))
-        : m(msg("The download stopped before it finished. Check the connection and try again.")),
+        : m(
+            msg(
+              "The download did not finish. Check the connection, or update T3 Code on that machine, then try again.",
+            ),
+          ),
   });
 }
 

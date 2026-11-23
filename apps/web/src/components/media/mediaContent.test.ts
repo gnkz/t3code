@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vite-plus/test";
 
-import { readMediaPng } from "./mediaContent";
+import { downloadMedia, readMediaPng } from "./mediaContent";
 
 const PNG_BYTES = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
@@ -73,4 +73,18 @@ it("reads media the renderer cannot fetch through the desktop main process", asy
   } finally {
     vi.unstubAllGlobals();
   }
+});
+
+it("refuses to save a response that is not the expected type", async () => {
+  // A gateway can answer a signed download URL with its own 200 error page.
+  const error = new Blob(['{"error":"expired"}'], { type: "application/json" });
+  using _fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(error));
+
+  await expect(
+    downloadMedia(
+      "https://remote.example/api/assets/t/report.pdf",
+      "report.pdf",
+      "application/octet-stream",
+    ),
+  ).rejects.toThrow("The file could not be loaded. Try again.");
 });
