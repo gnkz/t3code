@@ -64,6 +64,7 @@ import {
 import { isBrowserPreviewFile, openFileInPreview } from "~/browser/openFileInPreview";
 import { useAssetUrlRefresh, useAssetUrlState } from "~/assets/assetUrls";
 import { OpenInPicker } from "~/components/chat/OpenInPicker";
+import { useFileDownload } from "~/fileDownload";
 import { MediaVideoPlayer } from "~/components/media/MediaVideoPlayer";
 import { MediaActions, type MediaActionSource } from "~/components/media/MediaActions";
 import { useRemoteOpenState } from "~/remoteOpen";
@@ -1264,6 +1265,7 @@ export default function FilePreviewPanel({
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const hostEnvironmentId = useAtomValue(hostEnvironmentIdAtom);
   const remoteOpenState = useRemoteOpenState(environmentId);
+  const fileDownload = useFileDownload(environmentId);
   const serverConfig = useAtomValue(serverEnvironment.configValueAtom(environmentId));
   const environmentHttpBaseUrl = useEnvironmentHttpBaseUrl(environmentId);
   const previewAvailable = usePreviewAvailable(environmentId);
@@ -1496,6 +1498,11 @@ export default function FilePreviewPanel({
       : relativePath && attachment === undefined
         ? resolvePathLinkTarget(relativePath, cwd)
         : null;
+  // PDFs and large text already render their own Save file button.
+  const downloadPath =
+    fileDownload.canDownload && previewPath !== null && !isPdf && !showsLargeText
+      ? absolutePath
+      : null;
   const onFilePostRender = useFileLineReveal(relativePath, revealLine, revealRequestId);
   // Mounting the file read under the workspace mutation id refetches it after each mutation.
   useAtomMount(
@@ -1665,6 +1672,20 @@ export default function FilePreviewPanel({
               name={relativePath}
               copyContents={copyLargeText}
             />
+          ) : null}
+          {downloadPath ? (
+            <FileSurfaceAction
+              label={gt("Download", { $context: "verb, saves a file to this computer" })}
+              onPress={() =>
+                fileDownload.download({
+                  path: downloadPath,
+                  threadId: draft ? null : threadRef.threadId,
+                  workspaceRoot: cwd,
+                })
+              }
+            >
+              <DownloadIcon className="size-3.5" />
+            </FileSurfaceAction>
           ) : null}
           {canOpenInBrowser ? (
             <FileSurfaceAction

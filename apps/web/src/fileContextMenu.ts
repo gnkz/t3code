@@ -6,6 +6,7 @@ import {
 } from "@t3tools/contracts";
 
 import { resolveDiffPathForWorkspace } from "./diffFileActions";
+import { fileDownloadResource, useFileDownload } from "./fileDownload";
 import {
   revealInFileExplorerLabelForKind,
   revealInFileExplorerLabelForOs,
@@ -24,6 +25,7 @@ import type { MessageResolver } from "./i18n/messages";
 export type FileContextMenuAction =
   | "reveal-in-folder"
   | "open"
+  | "download"
   /** Submenu parent; never the activated id. */
   | "open-with"
   | `editor:${EditorId}`;
@@ -34,6 +36,8 @@ export interface FileContextMenuTarget {
   readonly filePath: string;
   readonly workspaceRoot: string | undefined;
   readonly repositoryRoot?: string | undefined;
+  /** Folders cannot be downloaded; the file tree builds targets for them too. */
+  readonly isDirectory?: boolean | undefined;
 }
 
 export function resolveFileContextMenuAbsolutePath(target: FileContextMenuTarget): string | null {
@@ -57,14 +61,29 @@ export interface FileContextMenuCapabilities {
   readonly revealLabel: string | undefined;
   readonly canOpenDefault: boolean;
   readonly editorIds: ReadonlyArray<EditorId>;
+  readonly canDownload: boolean;
 }
 
-function buildFileContextMenuItems(input: {
-  readonly hasAbsolutePath: boolean;
+function canDownloadTarget(
+  target: FileContextMenuTarget,
+  absolutePath: string | null,
+  capabilities: FileContextMenuCapabilities,
+): absolutePath is string {
+  return (
+    capabilities.canDownload &&
+    absolutePath !== null &&
+    target.isDirectory !== true &&
+    fileDownloadResource({ path: absolutePath, workspaceRoot: target.workspaceRoot }) !== null
+  );
+}
+
+export function buildFileContextMenuItems(input: {
+  readonly target: FileContextMenuTarget;
   readonly capabilities: FileContextMenuCapabilities;
   readonly resolve: MessageResolver;
 }): readonly ContextMenuItem<FileContextMenuAction>[] {
-  if (!input.hasAbsolutePath) return [];
+  const absolutePath = resolveFileContextMenuAbsolutePath(input.target);
+  if (absolutePath === null) return [];
   const items: ContextMenuItem<FileContextMenuAction>[] = [];
   if (input.capabilities.canOpenDefault) {
     items.push({
@@ -91,6 +110,13 @@ function buildFileContextMenuItems(input: {
       })),
     });
   }
+  if (canDownloadTarget(input.target, absolutePath, input.capabilities)) {
+    items.push({
+      id: "download",
+      label: input.resolve(msg("Download", { $context: "verb, saves a file to this computer" })),
+      icon: "download",
+    });
+  }
   return items;
 }
 
@@ -98,6 +124,7 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
   const openInEditor = useAtomCommand(shellEnvironment.openInEditor, { reportFailure: false });
   const serverConfig = useAtomValue(serverEnvironment.configValueAtom(environmentId));
   const resolve = useMessages();
+  const fileDownload = useFileDownload(environmentId);
 
   const availableEditors = serverConfig?.availableEditors ?? [];
   const capabilities: FileContextMenuCapabilities = {
@@ -112,6 +139,7 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
         : undefined,
     canOpenDefault: availableEditors.includes("file-manager"),
     editorIds: availableEditors,
+    canDownload: fileDownload.canDownload,
   };
 
   const activate = async (
@@ -120,6 +148,12 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
   ): Promise<void> => {
     const absolutePath = resolveFileContextMenuAbsolutePath(target);
     if (absolutePath === null || environmentId === null) return;
+    if (action === "download") {
+      if (canDownloadTarget(target, absolutePath, capabilities)) {
+        fileDownload.download({ path: absolutePath, workspaceRoot: target.workspaceRoot });
+      }
+      return;
+    }
 
     const reveal = action === "reveal-in-folder";
     const editor =
@@ -154,11 +188,7 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
     position?: { x: number; y: number },
   ): Promise<void> => {
     const api = readLocalApi();
-    const items = buildFileContextMenuItems({
-      hasAbsolutePath: resolveFileContextMenuAbsolutePath(target) !== null,
-      capabilities,
-      resolve,
-    });
+    const items = buildFileContextMenuItems({ target, capabilities, resolve });
     if (items.length === 0 || api === undefined) return;
     const clicked = await api.contextMenu.show(items, position);
     if (clicked === null) return;
@@ -167,11 +197,7 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
 
   return {
     buildItems: (target: FileContextMenuTarget) =>
-      buildFileContextMenuItems({
-        hasAbsolutePath: resolveFileContextMenuAbsolutePath(target) !== null,
-        capabilities,
-        resolve,
-      }),
+      buildFileContextMenuItems({ target, capabilities, resolve }),
     capabilities,
     activate,
     show,

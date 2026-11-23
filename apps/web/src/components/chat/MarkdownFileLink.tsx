@@ -52,6 +52,7 @@ interface MarkdownFileLinkProps {
   onOpenMedia?: (() => void) | undefined;
   onReveal?: (() => Promise<AtomCommandResult<unknown, unknown>>) | undefined;
   revealLabel?: string | undefined;
+  onDownload?: (() => Promise<void>) | undefined;
 }
 
 const MARKDOWN_FILE_LINK_CLASS_NAME = "chat-markdown-file-link";
@@ -76,6 +77,7 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
   onOpenMedia,
   onReveal,
   revealLabel,
+  onDownload,
   resolveCopyPaths,
   resolveDragPath,
 }: MarkdownFileLinkProps) {
@@ -265,6 +267,15 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
             ? ([{ id: "open-in-browser", label: gt("Open in integrated browser") }] as const)
             : []),
           ...(onReveal && revealLabel ? ([{ id: "reveal", label: revealLabel }] as const) : []),
+          ...(onDownload
+            ? ([
+                {
+                  id: "download",
+                  label: gt("Download", { $context: "verb, saves a file to this computer" }),
+                  icon: "download",
+                },
+              ] as const)
+            : []),
           ...copyItems.map(({ id, label }) => ({ id, label })),
         ] as const,
         position,
@@ -285,6 +296,12 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
       }
       if (clicked === "reveal") {
         handleRevealInFileManager();
+        return;
+      }
+      if (clicked === "download") {
+        void onDownload?.().catch((cause: unknown) =>
+          reportMarkdownActionFailure({ operation: "download-file", target: targetPath }, cause),
+        );
         return;
       }
       if (clicked === "copy-relative" || clicked === "copy-full") {
@@ -434,6 +451,7 @@ function areMarkdownFileLinkPropsEqual(
     previous.onOpenInBrowser === next.onOpenInBrowser &&
     previous.onOpenMedia === next.onOpenMedia &&
     previous.onReveal === next.onReveal &&
+    previous.onDownload === next.onDownload &&
     previous.resolveCopyPaths === next.resolveCopyPaths &&
     previous.resolveDragPath === next.resolveDragPath &&
     previous.revealLabel === next.revealLabel

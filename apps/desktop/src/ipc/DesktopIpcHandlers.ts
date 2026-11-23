@@ -1,3 +1,4 @@
+import { downloadFile } from "./methods/fileDownload.ts";
 import { startFileDrag } from "./methods/fileDrag.ts";
 import * as Effect from "effect/Effect";
 
@@ -117,6 +118,7 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   yield* ipc.handle(getLocalEnvironmentBearerToken);
 
   yield* ipc.handle(startFileDrag);
+  yield* ipc.handle(downloadFile);
   yield* ipc.handle(restartAudioService);
   yield* ipc.handle(getClientSettings);
   yield* ipc.handle(setClientSettings);

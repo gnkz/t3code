@@ -1,7 +1,8 @@
 import { EnvironmentId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { resolveFileContextMenuAbsolutePath } from "./fileContextMenu";
+import { buildFileContextMenuItems, resolveFileContextMenuAbsolutePath } from "./fileContextMenu";
+import { m } from "./i18n/messages";
 
 const BASE_TARGET = {
   environmentId: EnvironmentId.make("environment-local"),
@@ -40,5 +41,32 @@ describe("resolveFileContextMenuAbsolutePath", () => {
         filePath: "/absolute/src/index.ts",
       }),
     ).toBeNull();
+  });
+});
+
+describe("buildFileContextMenuItems", () => {
+  const capabilities = {
+    revealLabel: undefined,
+    canOpenDefault: false,
+    editorIds: [],
+    canDownload: true,
+  };
+  const ids = (
+    target: Parameters<typeof buildFileContextMenuItems>[0]["target"],
+    canDownload = true,
+  ) =>
+    buildFileContextMenuItems({
+      target,
+      capabilities: { ...capabilities, canDownload },
+      resolve: m,
+    }).map((item) => item.id);
+
+  it("offers Download for files on a remote machine, even when it is the only item", () => {
+    expect(ids(BASE_TARGET)).toEqual(["download"]);
+    expect(ids(BASE_TARGET, false)).toEqual([]);
+  });
+
+  it("never offers Download for folders", () => {
+    expect(ids({ ...BASE_TARGET, isDirectory: true })).toEqual([]);
   });
 });
