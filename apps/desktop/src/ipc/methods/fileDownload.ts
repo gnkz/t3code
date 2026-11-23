@@ -59,12 +59,14 @@ function showProgress(window: Electron.BrowserWindow) {
   if (window.isDestroyed()) return;
   let received = 0;
   let total = 0;
+  let sizeUnknown = false;
   for (const item of activeDownloads) {
     received += item.getReceivedBytes();
     total += item.getTotalBytes();
+    sizeUnknown ||= item.getTotalBytes() <= 0;
   }
-  // -1 removes the bar; a value above 1 is indeterminate while the size is unknown.
-  window.setProgressBar(activeDownloads.size === 0 ? -1 : total > 0 ? received / total : 2);
+  // -1 removes the bar; a value above 1 is indeterminate while any size is unknown.
+  window.setProgressBar(activeDownloads.size === 0 ? -1 : sizeUnknown ? 2 : received / total);
 }
 
 export const downloadFile = makeIpcMethod({

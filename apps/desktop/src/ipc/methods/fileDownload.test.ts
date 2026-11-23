@@ -16,7 +16,7 @@ class FakeDownloadItem extends NodeEvents.EventEmitter {
     this.emit("done", {}, "cancelled");
   });
   readonly chain: readonly string[];
-  readonly total = 10;
+  total = 10;
   constructor(...chain: string[]) {
     super();
     this.chain = chain;
@@ -152,5 +152,27 @@ it.effect("cancels a download that starts after its window has closed", () =>
     assert.strictEqual(late.cancel.mock.calls.length, 1);
     assert.strictEqual(late.setSaveDialogOptions.mock.calls.length, 0);
     assert.deepEqual(yield* Fiber.join(fiber), { status: "cancelled" });
+  }),
+);
+
+it.effect("shows an indeterminate bar while any running download has no known size", () =>
+  Effect.gen(function* () {
+    const { items, setProgressBar, run } = makeWindow();
+    const sized = yield* Effect.forkChild(run(ASSET_URL), { startImmediately: true });
+    const unsized = yield* Effect.forkChild(run(`${ASSET_URL}?2`), { startImmediately: true });
+    const [known, unknown] = items;
+    assert.isDefined(known);
+    assert.isDefined(unknown);
+    unknown.total = 0;
+    unknown.received = 700;
+    known.received = 6;
+    known.emit("updated", {}, "progressing");
+    assert.deepEqual(setProgressBar.mock.calls.at(-1), [2]);
+    unknown.emit("done", {}, "completed");
+    known.emit("updated", {}, "progressing");
+    assert.deepEqual(setProgressBar.mock.calls.at(-1), [0.6]);
+    known.emit("done", {}, "completed");
+    yield* Fiber.join(sized);
+    yield* Fiber.join(unsized);
   }),
 );

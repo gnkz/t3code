@@ -996,6 +996,9 @@ function useChatMarkdownState(
         findWorkspaceMatch: () => findWorkspaceFileMatch(fileLinkMeta),
       });
     const isAppBundle = isMacOS && fileLinkMeta.filePath.endsWith(".app");
+    // A draft thread does not exist on the server yet; its workspace root does.
+    const downloadThreadId =
+      threadRef !== undefined && readThreadShell(threadRef) !== null ? threadRef.threadId : null;
     const canOpenApp =
       environmentId !== null &&
       isAppBundle &&
@@ -1074,15 +1077,11 @@ function useChatMarkdownState(
           fileDownload.canDownload &&
           !isAppBundle &&
           !/[\\/]$/.test(fileLinkMeta.filePath) &&
-          (threadRef !== undefined || cwd !== undefined)
+          (downloadThreadId !== null || cwd !== undefined)
             ? async () =>
                 fileDownload.download({
                   path: (await resolveHostPath()).absolutePath,
-                  // A draft thread does not exist on the server yet; its workspace root does.
-                  threadId:
-                    threadRef !== undefined && readThreadShell(threadRef) !== null
-                      ? threadRef.threadId
-                      : null,
+                  threadId: downloadThreadId,
                   workspaceRoot: cwd,
                 })
             : undefined

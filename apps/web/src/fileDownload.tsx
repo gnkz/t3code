@@ -68,10 +68,8 @@ async function mintDownloadUrl(
   environmentId: EnvironmentId,
   resource: AssetResource,
 ): Promise<string> {
-  const connection = readPreparedConnection(environmentId);
-  if (connection === null) {
-    throw new Error(m(msg("Reconnect to the environment and try again.")));
-  }
+  const reconnect = () => new Error(m(msg("Reconnect to the environment and try again.")));
+  if (readPreparedConnection(environmentId) === null) throw reconnect();
   const result = await executeAtomQuery(
     appAtomRegistry,
     assetEnvironment.createUrl({ environmentId, input: { resource } }),
@@ -83,8 +81,11 @@ async function mintDownloadUrl(
       ? new Error(m(msg("The file was not found. It may have been moved or deleted.")))
       : cause;
   }
-  const url = resolveAssetUrl(connection.httpBaseUrl, result.value.relativeUrl);
-  if (url === null) throw new Error(m(msg("Reconnect to the environment and try again.")));
+  // Read after minting: a mint that retried on another route must use that route's address.
+  const connection = readPreparedConnection(environmentId);
+  const url =
+    connection === null ? null : resolveAssetUrl(connection.httpBaseUrl, result.value.relativeUrl);
+  if (url === null) throw reconnect();
   return url;
 }
 

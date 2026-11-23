@@ -1505,7 +1505,9 @@ export default function FilePreviewPanel({
         ? resolvePathLinkTarget(relativePath, cwd)
         : null;
   // Download streams to disk, so it replaces the previews' own Save file, which buffers the file.
-  const downloadPath = fileDownload.canDownload && previewPath !== null ? absolutePath : null;
+  // It waits for the read, as reveal does: a chat-linked folder reads as a file until then.
+  const downloadPath =
+    fileDownload.canDownload && previewPath !== null && file.isFile ? absolutePath : null;
   const onFilePostRender = useFileLineReveal(relativePath, revealLine, revealRequestId);
   // Mounting the file read under the workspace mutation id refetches it after each mutation.
   useAtomMount(
