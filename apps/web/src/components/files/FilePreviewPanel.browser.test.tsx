@@ -23,6 +23,7 @@ const state = vi.hoisted(() => ({
   openedBrowserUrls: [] as string[],
   remote: false,
   read: { error: null as string | null, isFile: true },
+  mintedPaths: [] as string[],
 }));
 
 vi.mock(import("@t3tools/client-runtime/state/runtime"), async (original) => ({
@@ -34,6 +35,7 @@ vi.mock(import("~/state/session"), async (original) => ({
   ...(await original()),
   readEnvironmentScope: () => true,
   useEnvironmentScope: () => true,
+  readPreparedConnection: (() => ({ httpBaseUrl: "http://environment.test" })) as never,
 }));
 vi.mock(import("~/state/filesystem"), async (original) => ({
   ...(await original()),
@@ -95,8 +97,10 @@ vi.mock(import("~/state/assets"), async (original) => {
     ...actual,
     assetEnvironment: {
       ...actual.assetEnvironment,
-      createUrl: ((target: { input: { resource: { path: string } } }) =>
-        createUrl(target.input.resource.path)) as never,
+      createUrl: ((target: { input: { resource: { path: string } } }) => {
+        state.mintedPaths.push(target.input.resource.path);
+        return createUrl(target.input.resource.path);
+      }) as never,
     },
   };
 });
@@ -180,6 +184,7 @@ function setup() {
   state.openedBrowserUrls = [];
   state.remote = false;
   state.read = { error: null, isFile: true };
+  state.mintedPaths = [];
   let mints = 0;
   state.mintUrl.mockReset().mockImplementation(async () => `/assets/report.docx?mint=${++mints}`);
   state.writeFile.mockReset().mockResolvedValue(AsyncResult.success(undefined));
@@ -798,5 +803,15 @@ describe("remote downloads", () => {
     await using screen = await render(filePreview("big.log", null, DraftId.make("unsent-draft")));
     await vi.waitFor(() => expect(button(screen, "Download")).not.toBeNull());
     expect(button(screen, "Save file")).toBeNull();
+  });
+
+  it("downloads the file the read showed, taking a line-like name literally", async () => {
+    using _settings = setup();
+    state.remote = true;
+    state.file = { relativePath: "notes:0", contents: "x\n", byteLength: 2, truncated: false };
+    await using screen = await render(filePreview("notes:0"));
+    await vi.waitFor(() => expect(button(screen, "Download")).not.toBeNull());
+    (button(screen, "Download") as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(state.mintedPaths).toContain("/workspace/notes:0"));
   });
 });

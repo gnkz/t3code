@@ -77,7 +77,7 @@ import { PREFERRED_HIGHLIGHTER } from "~/lib/syntaxHighlighting";
 import { cn, isMacPlatform } from "~/lib/utils";
 import { requestWorkspaceFocus } from "~/lib/workspaceFocus";
 import type { ChatFileAttachment } from "~/types";
-import { isHostPath } from "@t3tools/shared/path";
+import { isHostPath, resolveWorkspaceFilePath } from "@t3tools/shared/path";
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
@@ -1515,15 +1515,22 @@ export default function FilePreviewPanel({
         !renderBrowserFile &&
         !showsLargeText &&
         (isDocument || file.readError?.failure === "binary_file")));
+  // Download saves the file the read showed: the server reads `notes:0` literally and expands only
+  // `~/`, while the link resolver behind `absolutePath` also strips line suffixes.
+  const readPath =
+    previewPath === null || attachment !== undefined
+      ? null
+      : /^~[/\\]/.test(previewPath)
+        ? absolutePath
+        : resolveWorkspaceFilePath(previewPath, cwd);
   // Download waits for the read, as reveal does: a chat-linked folder reads as a file until then.
   const downloadPath =
     fileDownload.canDownload &&
-    previewPath !== null &&
     file.isFile &&
     !draftKeepsSave &&
-    absolutePath !== null &&
-    isDownloadablePath(absolutePath)
-      ? absolutePath
+    readPath !== null &&
+    isDownloadablePath(readPath)
+      ? readPath
       : null;
   // A read that settles without a file, such as a symlink out of the workspace whose asset still
   // renders, keeps the preview's own Save file.
