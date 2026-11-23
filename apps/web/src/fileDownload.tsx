@@ -29,7 +29,13 @@ export interface FileDownloadTarget {
   readonly workspaceRoot?: string | null | undefined;
 }
 
+/** The asset contract trims paths, so `report.txt ` would sign its sibling `report.txt`. */
+export function isDownloadablePath(path: string): boolean {
+  return path.trim() === path;
+}
+
 export function fileDownloadResource(target: FileDownloadTarget): AssetResource | null {
+  if (!isDownloadablePath(target.path)) return null;
   if (target.threadId) {
     return {
       _tag: "media-file",

@@ -42,4 +42,13 @@ describe("fileDownloadResource", () => {
     });
     expect(fileDownloadResource({ path })).toBeNull();
   });
+
+  it("offers nothing for a name the asset contract would trim into another file", () => {
+    const threadId = ThreadId.make("thread-1");
+    for (const path of ["/home/me/project/report.txt ", "/home/me/project/report.txt\t"]) {
+      expect(
+        fileDownloadResource({ path, threadId, workspaceRoot: "/home/me/project" }),
+      ).toBeNull();
+    }
+  });
 });

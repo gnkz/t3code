@@ -64,7 +64,7 @@ import {
 import { isBrowserPreviewFile, openFileInPreview } from "~/browser/openFileInPreview";
 import { useAssetUrlRefresh, useAssetUrlState } from "~/assets/assetUrls";
 import { OpenInPicker } from "~/components/chat/OpenInPicker";
-import { useFileDownload } from "~/fileDownload";
+import { isDownloadablePath, useFileDownload } from "~/fileDownload";
 import { MediaVideoPlayer } from "~/components/media/MediaVideoPlayer";
 import { MediaActions, type MediaActionSource } from "~/components/media/MediaActions";
 import { useRemoteOpenState } from "~/remoteOpen";
@@ -1517,7 +1517,12 @@ export default function FilePreviewPanel({
         (isDocument || file.readError?.failure === "binary_file")));
   // Download waits for the read, as reveal does: a chat-linked folder reads as a file until then.
   const downloadPath =
-    fileDownload.canDownload && previewPath !== null && file.isFile && !draftKeepsSave
+    fileDownload.canDownload &&
+    previewPath !== null &&
+    file.isFile &&
+    !draftKeepsSave &&
+    absolutePath !== null &&
+    isDownloadablePath(absolutePath)
       ? absolutePath
       : null;
   // A read that settles without a file, such as a symlink out of the workspace whose asset still

@@ -148,7 +148,7 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { hostEnvironmentIdAtom } from "../state/primaryEnvironment";
 import { cn } from "../lib/utils";
 import { resolveRemoteOpenState, useRemoteOpenResolution } from "../remoteOpen";
-import { useFileDownload } from "../fileDownload";
+import { isDownloadablePath, useFileDownload } from "../fileDownload";
 import { rightPanelHostRef, useRightPanelStore } from "../rightPanelStore";
 import { useOpenIssueLink } from "../lib/openIssueLink";
 import { issueTrackerEnvironment } from "../state/issueTrackers";
@@ -1077,6 +1077,7 @@ function useChatMarkdownState(
           fileDownload.canDownload &&
           !isAppBundle &&
           !/[\\/]$/.test(fileLinkMeta.filePath) &&
+          isDownloadablePath(fileLinkMeta.filePath) &&
           (downloadThreadId !== null || cwd !== undefined)
             ? async () =>
                 fileDownload.download({
